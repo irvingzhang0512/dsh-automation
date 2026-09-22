@@ -1,0 +1,4 @@
+# 统一换行与文本编码，避免 Windows 下中文文件被误判为二进制
+* text=auto eol=lf
+*.png binary
+*.jpg binary
