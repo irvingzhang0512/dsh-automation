@@ -1,6 +1,7 @@
 node_modules/
 lib/
 coverage/
+.test-runs/
 *.tmp
 *.log
 .DS_Store
