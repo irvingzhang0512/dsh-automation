@@ -331,19 +331,37 @@ export function mountAutomationRoutes(
       return false
     }
   }
+  // 宿主 webServer 的 exact 路由按 path 唯一（不区分 method），同 path 多 method
+  // 需合并注册为一个路由，在 handler 内按请求 method 分发；未声明的方法返回 405。
+  const byPath = new Map<string, Map<string, ApiRoute>>()
   for (const route of automationRoutes(service)) {
+    let byMethod = byPath.get(route.path)
+    if (byMethod === undefined) {
+      byMethod = new Map()
+      byPath.set(route.path, byMethod)
+    }
+    byMethod.set(route.method, route)
+  }
+  for (const [path, byMethod] of byPath) {
     disposers.push(ctx.webServer.register({
       kind: 'exact',
-      path: route.path,
+      path,
       handler: async (req, res) => {
         if (!fence(req)) {
           json(res, 403, { ok: false, code: 'FORBIDDEN', message: '来源不被信任。' })
           return
         }
         const url = new URL(req.url ?? '', 'http://localhost')
-        const params = matchPath(route.path, url.pathname)
+        const params = matchPath(path, url.pathname)
         if (params === null) {
           json(res, 404, { ok: false, code: 'NOT_FOUND', message: '路径不匹配。' })
+          return
+        }
+        const route = byMethod.get(req.method ?? '')
+        if (route === undefined) {
+          const allowed = [...byMethod.keys()].join(', ')
+          res.writeHead(405, { Allow: allowed, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+          res.end(JSON.stringify({ ok: false, code: 'METHOD_NOT_ALLOWED', message: `不支持的方法 ${req.method}，允许：${allowed}` }))
           return
         }
         try {
