@@ -7,12 +7,13 @@
  * 2. 在 `main` keyed slot 注册 `automation` 主面板（任务 / 待运行 / 运行中 /
  *    历史 四 Tab + 新建任务 Drawer + 任务详情 / Run 详情）。
  *
- * 交互数据经宿主 /api/automation REST API 获取（webServer 路由）；可选
- * /automation/ws 状态推送（第一版为轮询 + 5s 状态心跳，不做强依赖）。
+ * 交互数据经宿主 /api/automation REST API 获取（webServer 路由）。
+ * 侧栏条目卡片化对齐「新会话」（style.ts 注入样式）。
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { createElement } from 'react'
 import { AutomationPage } from './AutomationPage.tsx'
+import { injectStyle, removeStyle } from './style.ts'
 
 /**
  * 面板 id（main keyed slot 的 key + panellist 条目 id）。
@@ -44,57 +45,47 @@ export interface AutomationClientContext extends Context {
   locale?: { active?: string }
 }
 
+/** 侧栏图标：时钟 + 箭头线框（◷），stroke 跟随条目颜色，激活用品牌色。 */
+function AutomationGlyph(props: { size?: number; active?: boolean }): ReturnType<typeof createElement> {
+  const size = props.size ?? 18
+  const stroke = props.active === true ? 'var(--dsw-alias-brand-primary, #2f6fed)' : 'currentColor'
+  return createElement(
+    'svg',
+    {
+      width: size,
+      height: size,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke,
+      strokeWidth: 1.7,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      'aria-label': '自动任务',
+    },
+    createElement('circle', { cx: 12, cy: 13, r: 8 }),
+    createElement('path', { d: 'M12 9.5V13l2.5 2' }),
+    createElement('path', { d: 'M12 3.5v2M4.5 7l1.4 1.4M19.5 7l-1.4 1.4' }),
+  )
+}
+
 /** 客户端插件主体。 */
 export function apply(rawCtx: Context): void {
   const ctx = rawCtx as AutomationClientContext
-  ctx.effect(() => {
-    const slots = ctx.slots as {
-      register(options: Record<string, unknown>, component: unknown): () => void
-    }
+  injectStyle()
 
-    // ① 主面板：占 main keyed slot（4 个 Tab 都在这个组件里）。
-    const disposePage = slots.register(
-      {
-        name: 'main',
-        key: AUTOMATION_PANEL,
-      },
-      AutomationPage,
-    )
+  ctx.slots.inject('main', () => ctx.slots.register(
+    { name: 'main', key: AUTOMATION_PANEL, order: AUTOMATION_ORDER },
+    () => createElement(AutomationPage),
+  ))
 
-    // ② 侧栏入口：占 sidebar.panellist（新会话按钮正下方）。
-    const disposeEntry = slots.register(
-      {
-        name: 'sidebar.panellist',
-        id: AUTOMATION_PANEL,
-        order: AUTOMATION_ORDER,
-        label: '自动任务',
-      },
-      // 图标组件：({ size, active }) => ReactNode
-      (props: { size?: number; active?: boolean }) =>
-        createElement(
-          'span',
-          {
-            style: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 },
-            title: '自动任务',
-          },
-          createElement('span', { style: { fontSize: props.size ?? 16, lineHeight: 1 } }, '◷'),
-          createElement('span', null, '自动任务'),
-        ),
-    )
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
+    { name: 'sidebar.panellist', id: AUTOMATION_PANEL, order: AUTOMATION_ORDER, label: '自动任务' },
+    (props: { size?: number; active?: boolean }) => createElement(AutomationGlyph, props),
+  ))
 
-    return () => {
-      try {
-        disposePage()
-      } catch {
-        // 忽略退订异常。
-      }
-      try {
-        disposeEntry()
-      } catch {
-        // 忽略退订异常。
-      }
-    }
-  }, 'dsh-automation: page + nav entry')
+  ctx.effect(() => () => {
+    removeStyle()
+  }, 'dsh-automation: style cleanup')
 }
 
 export { AUTOMATION_PANEL as AUTOMATION_PANEL_ID }

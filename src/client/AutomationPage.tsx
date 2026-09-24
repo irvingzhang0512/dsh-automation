@@ -56,7 +56,7 @@ function AutomationPageImpl() {
 
   return createElement(
     'div',
-    { style: { padding: '16px 20px', height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 } },
+    { className: 'da-root', style: { padding: '16px 20px', minWidth: 0 } },
     createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } },
       createElement('div', null,
         createElement('h1', { style: { fontSize: 18, margin: 0 } }, '自动任务'),

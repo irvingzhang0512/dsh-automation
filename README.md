@@ -15,10 +15,11 @@ DSH（DeepSeek Harness）定时自动任务插件：统一管理“按时间自�
 - **并发策略**：skip（默认）/ queue / parallel；
 - **后台调度**：Trigger Engine + Task Queue + Worker + Run Manager + Retry Manager，
   与 `dsh web` 生命周期解耦，Web 重启不影响后台调度与长期任务；
-- **SQLite 持久化**：Node 内置 `node:sqlite`，数据目录 `~/.dsh/automation/`；
+- **SQLite 持久化**：Node 内置 `node:sqlite`，数据目录遵循 DSH 统一规范 `~/.dsh/data/automation/`；
+- **配置项**：数据目录、默认超时、调度轮询间隔、备份保留份数，可在 DSH 设置页修改，实时生效；
 - **16 个 automation 工具**：供 LLM / Skill 通过工具统一管理任务；
 - **automation Skill**：教 LLM 解析自然语言请求并调用工具；
-- **Web 主页面**：左上“自动任务”入口 + `/automation` 页面（任务 / 待运行 / 运行中 / 历史 四 Tab + 新建任务 Drawer + 任务详情）。
+- **Web 主页面**：左上“自动任务”入口（与“新会话”“日程”同款卡片样式）+ `/automation` 页面（任务 / 待运行 / 运行中 / 历史 四 Tab + 新建任务 Drawer + 任务详情）。
 
 ## 安装
 
@@ -37,13 +38,28 @@ npm run build
 
 ## 数据目录
 
+遵循 DSH 统一数据目录规范（需求 §23）：`$DSH_DATA_DIR` → `~/.dsh/data/automation/`（`$DSH_HOME` 可覆盖）。
+第一版使用的 `~/.dsh/automation/` 会在首次启动时自动迁移到新路径（旧目录保留，不自动删除）。
+
 ```
-~/.dsh/automation/
+~/.dsh/data/automation/
 │
-├── automation.db   # SQLite（tasks / triggers / runs / run_logs）
+├── automation.db   # SQLite（tasks / triggers / runs / run_logs；WAL 模式）
 ├── logs/           # 运行日志（run_xxx.log）
+├── backup/         # SQLite 备份（automation.<时间戳>.db，保留 keepBackups 份）
 └── runtime/        # 运行期文件
 ```
+
+## 配置
+
+配置项在 DSH 设置页「自动任务」设置卡中修改（保存到 `~/.dsh/settings.yaml`，实时生效）：
+
+| 字段 | 说明 | 默认 |
+|---|---|---|
+| `dataDir` | 数据目录覆盖；留空按 DSH 规范自动解析 | 空 |
+| `defaultTimeoutSeconds` | 任务未单独配置超时时的默认值 | 1800 |
+| `tickMs` | 调度轮询间隔（毫秒）；修改后需重启 DSH 生效 | 1000 |
+| `keepBackups` | SQLite 备份保留份数（0 关闭备份） | 10 |
 
 ## 文档
 
