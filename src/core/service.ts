@@ -35,6 +35,8 @@ export interface AutomationServiceOptions {
   defaultTimeoutSeconds?: number
   /** 调度轮询间隔（测试可调）。 */
   tickMs?: number
+  /** 运行时配置提供者（settings 接入后优先于静态值）。 */
+  configProvider?: () => { defaultTimeoutSeconds?: number; tickMs?: number; keepBackups?: number }
   /** 日志写入器（服务级日志）。 */
   logger?: (line: string) => void
 }
@@ -90,9 +92,11 @@ export class AutomationService {
   constructor(store: AutomationStore, deps: AutomationHostDeps, options: AutomationServiceOptions = {}) {
     this.store = store
     this.deps = deps
+    // 配置优先级：configProvider（settings 实时读取）> 静态 options > 默认值。
+    const provided = options.configProvider?.() ?? {}
     this.options = {
-      defaultTimeoutSeconds: options.defaultTimeoutSeconds ?? 1800,
-      tickMs: options.tickMs ?? SCHEDULER_TICK_MS,
+      defaultTimeoutSeconds: provided.defaultTimeoutSeconds ?? options.defaultTimeoutSeconds ?? 1800,
+      tickMs: provided.tickMs ?? options.tickMs ?? SCHEDULER_TICK_MS,
     }
     this.logger = options.logger ?? (() => {})
     this.worker = new AutomationWorker({ resolveExecutor: (action) => deps.resolveExecutor(action) })

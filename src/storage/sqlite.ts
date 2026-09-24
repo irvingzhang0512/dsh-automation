@@ -1,20 +1,32 @@
 /**
  * SQLite 存储层（Node 内置 node:sqlite，无需原生依赖）。
  *
- * 数据目录遵循 DSH 统一规范：`~/.dsh/automation/`（`$DSH_HOME` 可覆盖）：
+ * 数据目录遵循 DSH 统一规范（需求 §23"应优先遵循 DSH 目录约定"）：
  *
- *   automation.db   # SQLite（tasks / triggers / runs / run_logs）
+ *   <DSH_DATA_DIR>/automation/        （环境变量优先）
+ *   <DSH_HOME>/data/automation/       （默认 ~/.dsh/data/automation/）
+ *
+ * 目录布局：
+ *
+ *   automation.db   # SQLite（tasks / triggers / runs / run_logs；WAL 模式）
  *   logs/           # 运行日志（run_xxx.log，人类可读副本）
+ *   backup/         # SQLite 备份（automation.<ts>.db，保留 keepBackups 份）
+ *
+ * 兼容：第一版使用 `~/.dsh/automation/`；挂载时检测旧路径存在则一次性复制
+ * 到新路径（幂等，不删除旧目录，留作回退）。
  *
  * 职责：
  * - 建表与迁移（第一版 v1）；
  * - Task / Trigger / Run 的 CRUD；
  * - Run 日志：写入 DB（结构化行）+ logs/ 文件（文本副本）；
- * - 同步 API（DatabaseSync），Node 事件循环内天然串行，无需外部锁。
+ * - 同步 API（DatabaseSync），Node 事件循环内天然串行，无需外部锁；
+ * - 长期持久化：启动时与周期性 SQLite 备份（wal_checkpoint 后复制）。
  */
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
-import { mkdirSync, readFileSync, appendFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  mkdirSync, readFileSync, appendFileSync, existsSync, copyFileSync, readdirSync, rmSync, statSync,
+} from 'node:fs'
+import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
 import { randomBytes } from 'node:crypto'
 import type {
@@ -22,10 +34,29 @@ import type {
   CreateTaskInput, TriggerConfig, RetryConfig, ActionSpec, ConcurrencyPolicy, TaskSource,
 } from '../shared/types.ts'
 
-/** 默认数据目录：`~/.dsh/automation`（尊重 $DSH_HOME）。 */
-export function defaultAutomationHome(): string {
-  const dshHome = process.env.DSH_HOME ?? join(homedir(), '.dsh')
+/** 兼容别名：第一版数据目录 `~/.dsh/automation`（保留导出，测试/迁移用）。 */
+export function legacyAutomationHome(env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
+  const dshHome = env.DSH_HOME ?? join(home, '.dsh')
   return join(dshHome, 'automation')
+}
+
+/**
+ * 解析 DSH 统一数据目录（对齐 dsh-agenda 的 resolveDataDir 规范）：
+ *   override（配置 dataDir）→ $DSH_DATA_DIR/automation → $DSH_HOME/data/automation。
+ */
+export function resolveAutomationDataDir(
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+  override?: string,
+): string {
+  if (typeof override === 'string' && override.trim() !== '') {
+    return override
+  }
+  if (typeof env.DSH_DATA_DIR === 'string' && env.DSH_DATA_DIR !== '') {
+    return join(env.DSH_DATA_DIR, 'automation')
+  }
+  const dshHome = typeof env.DSH_HOME === 'string' && env.DSH_HOME !== '' ? env.DSH_HOME : join(home, '.dsh')
+  return join(dshHome, 'data', 'automation')
 }
 
 /** 短随机 id 片段。 */
@@ -145,8 +176,12 @@ function rowToRun(row: RunRow): Run {
 
 /** 存储选项。 */
 export interface SqliteStoreOptions {
-  /** 数据目录（缺省 ~/.dsh/automation）。 */
+  /** 数据目录（缺省按 DSH 规范自动解析）。 */
   homeDir?: string
+  /** SQLite 备份保留份数（默认 10；0 关闭备份）。 */
+  keepBackups?: number
+  /** 是否跳过旧路径迁移（测试用）。 */
+  skipLegacyMigration?: boolean
 }
 
 /** SQLite 实现的 AutomationStore。 */
@@ -154,23 +189,73 @@ export class SqliteAutomationStore implements AutomationStore {
   readonly homeDir: string
   readonly dbPath: string
   readonly logsDir: string
+  readonly backupDir: string
   private readonly db: DatabaseSync
+  private readonly keepBackups: number
 
   constructor(options: SqliteStoreOptions = {}) {
-    this.homeDir = options.homeDir ?? defaultAutomationHome()
+    this.homeDir = options.homeDir ?? resolveAutomationDataDir()
     this.logsDir = join(this.homeDir, 'logs')
+    this.backupDir = join(this.homeDir, 'backup')
+    this.keepBackups = options.keepBackups ?? 10
+
+    // 旧路径（~/.dsh/automation）→ 新路径（DSH 规范）一次性迁移（幂等）。
+    if (options.skipLegacyMigration !== true) {
+      migrateLegacyData(legacyAutomationHome(), this.homeDir)
+    }
+
     mkdirSync(this.homeDir, { recursive: true })
     mkdirSync(this.logsDir, { recursive: true })
+    if (this.keepBackups > 0) mkdirSync(this.backupDir, { recursive: true })
     this.dbPath = join(this.homeDir, 'automation.db')
     this.db = new DatabaseSync(this.dbPath)
     this.db.exec('PRAGMA journal_mode = WAL;')
     this.db.exec('PRAGMA synchronous = NORMAL;')
     this.migrate()
+    // 启动时备份一次（长期持久化；WAL 一致性）。
+    if (this.keepBackups > 0) this.backupNow()
   }
 
   /** 关闭数据库（服务卸载时调用）。 */
   close(): void {
     this.db.close()
+  }
+
+  /** 立即做一次一致性备份（wal_checkpoint 后复制 db 到 backup/，清理最旧）。 */
+  backupNow(): string | undefined {
+    if (this.keepBackups <= 0) return undefined
+    try {
+      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE);')
+    } catch {
+      // checkpoint 失败不阻断备份（WAL 未落盘内容可能丢失，但主文件一致）。
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const target = join(this.backupDir, `automation.${stamp}.db`)
+    copyFileSync(this.dbPath, target)
+    this.rotateBackups()
+    return target
+  }
+
+  /** 清理最旧的备份，只保留 keepBackups 份。 */
+  private rotateBackups(): void {
+    let files: string[]
+    try {
+      files = readdirSync(this.backupDir).filter(name => /^automation\..+\.db$/.test(name))
+    } catch {
+      return
+    }
+    if (files.length <= this.keepBackups) return
+    files
+      .map(name => ({ name, mtime: statSync(join(this.backupDir, name)).mtimeMs }))
+      .sort((a, b) => a.mtime - b.mtime)
+      .slice(0, files.length - this.keepBackups)
+      .forEach(entry => {
+        try {
+          rmSync(join(this.backupDir, entry.name), { force: true })
+        } catch {
+          // 忽略清理失败。
+        }
+      })
   }
 
   private migrate(): void {
@@ -429,6 +514,65 @@ export class SqliteAutomationStore implements AutomationStore {
 /** 供测试用的临时存储（不干扰真实数据）。 */
 export function createMemoryStore(): { store: AutomationStore; dbPath: string } {
   const dir = join(process.cwd(), '.test-runs', `automation-${rand()}`)
-  const store = new SqliteAutomationStore({ homeDir: dir })
+  const store = new SqliteAutomationStore({ homeDir: dir, skipLegacyMigration: true })
   return { store, dbPath: dir }
 }
+
+/**
+ * 旧路径（~/.dsh/automation）→ 新路径（DSH 规范）一次性迁移。
+ * 幂等：目标已存在（含空 db 文件）或旧路径不存在则跳过；成功后不删除旧目录。
+ * @returns 是否发生了迁移。
+ */
+export function migrateLegacyData(legacyDir: string, targetDir: string): boolean {
+  if (legacyDir === targetDir) return false
+  try {
+    if (!existsSync(join(legacyDir, 'automation.db'))) return false
+  } catch {
+    return false
+  }
+  // 目标已有 db（新路径已初始化）则跳过——避免覆盖新数据。
+  if (existsSync(join(targetDir, 'automation.db'))) return false
+
+  let copied = false
+  try {
+    mkdirSync(targetDir, { recursive: true })
+    // 复制主 db 及其 WAL/SHM 伴生文件。
+    for (const suffix of ['', '-wal', '-shm']) {
+      const src = join(legacyDir, `automation.db${suffix}`)
+      if (existsSync(src)) {
+        copyFileSync(src, join(targetDir, `automation.db${suffix}`))
+        copied = true
+      }
+    }
+    // 复制 logs/ 目录（若存在）。
+    const legacyLogs = join(legacyDir, 'logs')
+    if (existsSync(legacyLogs)) {
+      try {
+        mkdirSync(join(targetDir, 'logs'), { recursive: true })
+        for (const name of readdirSync(legacyLogs)) {
+          const src = join(legacyLogs, name)
+          if (statSync(src).isFile()) copyFileSync(src, join(targetDir, 'logs', name))
+        }
+      } catch {
+        // logs 复制失败不阻断 db 迁移。
+      }
+    }
+  } catch {
+    // 迁移失败不抛——插件照常初始化新目录（数据留在旧路径，用户可手动处理）。
+    return false
+  }
+  return copied
+}
+
+/** 供宿主/工具读取备份目录与最近备份（状态展示用）。 */
+export function latestBackupPath(store: { backupDir: string }): string | undefined {
+  try {
+    const files = readdirSync(store.backupDir).filter(name => /^automation\..+\.db$/.test(name))
+    if (files.length === 0) return undefined
+    files.sort((a, b) => statSync(join(store.backupDir, b)).mtimeMs - statSync(join(store.backupDir, a)).mtimeMs)
+    return join(store.backupDir, files[0]!)
+  } catch {
+    return undefined
+  }
+}
+

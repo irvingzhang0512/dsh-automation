@@ -45,6 +45,15 @@ export interface AutomationAgents {
   }): Promise<{ agent: { id: string; followup(message: unknown): void; whenIdle(): Promise<void>; cancel(cause: string): void; session: unknown }; dispose(): Promise<void> }>
 }
 
+/** settings 服务面（配置注册；可选——缺失时插件用默认配置）。 */
+export interface AutomationSettings {
+  register<const N extends string, T>(
+    ns: N,
+    schema: unknown,
+    options?: { base?: Partial<T>; applies?: 'live' | 'restart' },
+  ): { get(): T; watch(cb: (next: T) => void): () => void; update(patch: object): Promise<void> }
+}
+
 /** 本插件看到的 Context。 */
 export interface AutomationContextShape {
   webServer: AutomationWebServer
@@ -52,10 +61,12 @@ export interface AutomationContextShape {
   skills?: AutomationSkills
   tools: AutomationTools
   agents?: AutomationAgents
+  settings?: AutomationSettings
   /** cordis 生命周期工具。 */
   effect(fn: () => (() => void) | void, label?: string): void
   get<T = unknown>(name: string): T | undefined
   provide<T>(name: string, value: T): () => void
+  inject<T = unknown>(deps: string[], callback: (ctx: Context) => T): T | undefined
 }
 
 /** 结构镜像 + vendored cordis Context 的交叉类型。 */

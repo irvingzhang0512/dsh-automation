@@ -19,8 +19,9 @@ import type { Duplex } from 'node:stream'
 import { AutomationService } from './core/service.ts'
 import { ChildProcessExecutor } from './actions/process.ts'
 import { AgentActionExecutor, makeSkillLoader } from './actions/agent.ts'
-import { SqliteAutomationStore } from './storage/sqlite.ts'
+import { SqliteAutomationStore, resolveAutomationDataDir } from './storage/sqlite.ts'
 import { loadBundledSkill, BUNDLED_SKILL_DIR } from './host/skill-registration.ts'
+import { AUTOMATION_CONFIG_NS, AutomationConfigSchema, DEFAULT_CONFIG, normalizeConfig, type AutomationConfig } from './host/config.ts'
 import { registerAutomationTools } from './tools/automation-tools.ts'
 import { mountAutomationRoutes } from './server/api.ts'
 import type { Context } from './context-types.ts'
@@ -28,28 +29,42 @@ import type { Context } from './context-types.ts'
 /** cordis.yml 行用的插件标识。 */
 export const name = 'dsh-automation'
 
-/** 挂载前必需的服务。 */
-export const inject = ['tools', 'webServer', 'webRuntime', 'skills']
+/** 挂载前必需的服务（settings 为软依赖，缺失时用默认配置）。 */
+export const inject = ['tools', 'webServer', 'webRuntime', 'skills', 'settings']
 
 /** 服务状态推送 WebSocket 路径。 */
 export const BRIDGE_PATH = '/automation/ws'
 
-/** 插件可配置项（cordis config）。 */
-export interface Config {
-  /** 数据目录（缺省 ~/.dsh/automation）。 */
-  dataDir?: string
-  /** 默认超时秒数（任务未配置时）。 */
-  defaultTimeoutSeconds?: number
-  /** 调度轮询间隔（ms）。 */
-  tickMs?: number
-}
-
 /**
  * 插件主体：启动自动化服务、挂载工具 / API / 桥。
- * @param ctx - 宿主插件上下文（tools、webServer、webRuntime、skills、agents）。
+ * @param ctx - 宿主插件上下文（tools、webServer、webRuntime、skills、agents、settings）。
  */
-export function apply(ctx: Context, config: Config = {}): void {
-  const store = new SqliteAutomationStore({ homeDir: config.dataDir })
+export function apply(ctx: Context, config: Partial<AutomationConfig> = {}): void {
+  // 实时配置：settings 服务存在时注册 namespace，变更立即生效；否则用 base+默认。
+  let getConfig: () => AutomationConfig = () => normalizeConfig({ ...DEFAULT_CONFIG, ...config })
+  const settings = ctx.settings
+  if (settings?.register !== undefined) {
+    ctx.inject(['settings'], (sctx) => {
+      const scope = sctx.settings?.register?.(AUTOMATION_CONFIG_NS, AutomationConfigSchema, {
+        base: normalizeConfig(config),
+        applies: 'live',
+      })
+      if (scope !== undefined) {
+        getConfig = () => normalizeConfig(scope.get() as unknown)
+        scope.watch((next) => {
+          getConfig = () => normalizeConfig(next as unknown)
+        })
+      }
+      sctx.effect(() => () => {
+        getConfig = () => normalizeConfig({ ...DEFAULT_CONFIG, ...config })
+      }, 'dsh-automation: settings cleanup')
+    })
+  }
+
+  // 数据目录：DSH 统一规范解析（配置 dataDir 可覆盖）。
+  const cfg = getConfig()
+  const homeDir = resolveAutomationDataDir(process.env, undefined, cfg.dataDir)
+  const store = new SqliteAutomationStore({ homeDir, keepBackups: cfg.keepBackups })
   const service = new AutomationService(store, {
     resolveExecutor: (action) => {
       if (action.type === 'command' || action.type === 'script') {
@@ -61,8 +76,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       return undefined
     },
   }, {
-    defaultTimeoutSeconds: config.defaultTimeoutSeconds ?? 1800,
-    tickMs: config.tickMs,
+    configProvider: () => getConfig(),
+    defaultTimeoutSeconds: cfg.defaultTimeoutSeconds,
+    tickMs: cfg.tickMs,
     logger: (line) => {
       // 服务级日志：第一版输出到 stderr（避免污染 stdout 协议面）。
       process.stderr.write(`[dsh-automation] ${line}\n`)

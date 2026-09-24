@@ -1,6 +1,6 @@
 {
   "name": "dsh-automation",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DSH 定时自动任务插件：统一管理“按时间自动执行”的任务。覆盖任务创建/查看/修改/删除/启停、多 Trigger（Once/Hourly/Daily/Weekday/Weekly/Monthly/Cron）、后台调度服务（Trigger Engine / Task Queue / Worker / Run Manager / Retry / 超时 / 并发策略）、SQLite 持久化、四类 Action（Skill / Agent Prompt / Command / Script）、16 个 automation_* 工具、automation skill 与 Web 主页面（任务/待运行/运行中/历史四 Tab）。",
   "type": "module",
   "repository": {

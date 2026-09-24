@@ -19,5 +19,5 @@
 - insert:
     - id: dsh-automation
       name: dsh-automation
-      inject: [tools, skills, webServer, webRuntime]
+      inject: [tools, skills, webServer, webRuntime, settings]
       config: {}
