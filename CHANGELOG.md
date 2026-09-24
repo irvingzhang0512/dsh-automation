@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- **改名**：用户可见入口与页面标题「自动任务」→「定时任务」（侧边栏入口、页面标题、SKILL 描述、README 同步；内部标识 `automation` / `dsh-automation` 不变）。
+- **创建引导**：主页面「任务」Tab 空态说明两种创建方式（表单 / 自然语言），新建 Drawer 标题改为「新建定时任务」。
+- **数据目录可见**：主页面头部状态条显示当前数据目录（`/api/automation/status` 新增 `homeDir`）。
+- **文档补齐**：新增 `docs/architecture.md` / `docs/tools.md` / `docs/skill.md`（README 链接不再悬空）；README 增加「快速开始」。
+
 ## 0.2.0
 
 - **配置项**：接入 DSH 设置系统（`ctx.settings` + schemastery schema），设置页出现「自动任务」设置卡；
