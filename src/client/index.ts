@@ -2,7 +2,7 @@
  * dsh-automation —— 客户端半区（浏览器）。
  *
  * 职责（需求 §3）：
- * 1. 在 DSH Web 左上区域“新会话”按钮正下方注册固定入口“自动任务”
+ * 1. 在 DSH Web 左上区域“新会话”按钮正下方注册固定入口“定时任务”
  *    （sidebar.panellist list slot；点击 → selectPanel('automation')）；
  * 2. 在 `main` keyed slot 注册 `automation` 主面板（任务 / 待运行 / 运行中 /
  *    历史 四 Tab + 新建任务 Drawer + 任务详情 / Run 详情）。
@@ -60,7 +60,7 @@ function AutomationGlyph(props: { size?: number; active?: boolean }): ReturnType
       strokeWidth: 1.7,
       strokeLinecap: 'round',
       strokeLinejoin: 'round',
-      'aria-label': '自动任务',
+      'aria-label': '定时任务',
     },
     createElement('circle', { cx: 12, cy: 13, r: 8 }),
     createElement('path', { d: 'M12 9.5V13l2.5 2' }),
@@ -79,7 +79,7 @@ export function apply(rawCtx: Context): void {
   ))
 
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register(
-    { name: 'sidebar.panellist', id: AUTOMATION_PANEL, order: AUTOMATION_ORDER, label: '自动任务' },
+    { name: 'sidebar.panellist', id: AUTOMATION_PANEL, order: AUTOMATION_ORDER, label: '定时任务' },
     (props: { size?: number; active?: boolean }) => createElement(AutomationGlyph, props),
   ))
 

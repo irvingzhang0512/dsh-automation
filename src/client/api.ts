@@ -149,7 +149,7 @@ export interface HistoryWire {
 
 export const api = {
   /** 服务状态。 */
-  status: () => request<Envelope & { status: { running: boolean; queued: number; active: number } }>('/status'),
+  status: () => request<Envelope & { status: { running: boolean; queued: number; active: number; homeDir: string } }>('/status'),
 
   /** 列出任务。 */
   listTasks: () => request<Envelope & { tasks: TaskWire[] }>('/tasks'),

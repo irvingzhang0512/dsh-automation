@@ -34,7 +34,7 @@ export function AutomationPage(): ReturnType<typeof createElement> {
 function AutomationPageImpl() {
   const [tab, setTab] = useState<TabKey>('tasks')
   const [refreshKey, setRefreshKey] = useState(0)
-  const [status, setStatus] = useState<{ running: boolean; queued: number; active: number } | null>(null)
+  const [status, setStatus] = useState<{ running: boolean; queued: number; active: number; homeDir: string } | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -59,11 +59,11 @@ function AutomationPageImpl() {
     { className: 'da-root', style: { padding: '16px 20px', minWidth: 0 } },
     createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } },
       createElement('div', null,
-        createElement('h1', { style: { fontSize: 18, margin: 0 } }, '自动任务'),
+        createElement('h1', { style: { fontSize: 18, margin: 0 } }, '定时任务'),
         createElement('div', { style: { fontSize: 12, color: '#888', marginTop: 2 } },
           status === null
             ? '…'
-            : `调度${status.running ? '运行中' : '已停止'} · 队列 ${status.queued} · 运行中 ${status.active}`,
+            : `调度${status.running ? '运行中' : '已停止'} · 队列 ${status.queued} · 运行中 ${status.active} · 数据 ${status.homeDir}`,
         ),
       ),
       createElement('button', { onClick: refresh, style: buttonStyle }, '刷新'),
@@ -164,7 +164,13 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
           ),
         ),
       )),
-      tasks !== null && tasks.length === 0 && createElement('div', { style: { color: '#999', fontSize: 13, padding: 16, textAlign: 'center' } }, '还没有任务。点击“+ 新建任务”创建一个。'),
+      tasks !== null && tasks.length === 0 && createElement('div', { style: { color: '#888', fontSize: 13, padding: '20px 16px', textAlign: 'center', lineHeight: 1.8 } },
+        '还没有定时任务。创建方式有两种：',
+        createElement('br'),
+        createElement('span', null, '① 点右上角「+ 新建任务」，填写名称、执行动作与执行时间；'),
+        createElement('br'),
+        createElement('span', null, '② 直接对助手说，例如「每天晚上 8 点运行项目日报」——会自动帮你创建。'),
+      ),
       tasks === null && error === null && createElement('div', { style: { color: '#999', fontSize: 13, padding: 16 } }, '加载中…'),
     ),
     drawer !== null && createElement(TaskDrawer, {
@@ -296,7 +302,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
       style: { width: 440, maxWidth: '92vw', background: '#fff', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
       onClick: (e: ClickEvent) => e.stopPropagation(),
     },
-      createElement('h2', { style: { fontSize: 16, margin: '0 0 16px' } }, props.mode === 'create' ? '新建任务' : `编辑任务 · ${props.task?.name ?? ''}`),
+      createElement('h2', { style: { fontSize: 16, margin: '0 0 16px' } }, props.mode === 'create' ? '新建定时任务' : `编辑定时任务 · ${props.task?.name ?? ''}`),
       createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
         /* 名称 */
         createElement('div', null,

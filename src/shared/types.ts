@@ -248,6 +248,8 @@ export interface AutomationResult {
 
 /** 服务对外的最小存储 / 查询面（tools 与 server 共用）。 */
 export interface AutomationStore {
+  /** 数据目录（持久化位置；状态展示用）。 */
+  readonly homeDir: string
   listTasks(): Task[]
   getTask(id: string): Task | undefined
   createTask(input: CreateTaskInput): Task

@@ -53,6 +53,8 @@ export interface ServiceStatus {
   queued: number
   active: number
   tickMs: number
+  /** 数据目录（持久化位置）。 */
+  homeDir: string
   startedAt?: string
 }
 
@@ -150,6 +152,7 @@ export class AutomationService {
       queued: this.queue.size,
       active: this.runManager.size,
       tickMs: this.options.tickMs,
+      homeDir: this.store.homeDir,
       ...(this.startedAt !== undefined ? { startedAt: this.startedAt } : {}),
     }
   }
