@@ -85,6 +85,20 @@ function stringifyJson(value: unknown): string | null {
   return JSON.stringify(value)
 }
 
+/**
+ * 去掉值为 undefined 的自身属性。
+ * 返回给调用方的 Task / Trigger 必须是无损 JSON（不允许嵌套 undefined）：
+ * rowToTask 通过条件展开维护该不变式，这里为内存路径（createTask / updateTask）
+ * 统一兜底，保证 LLM 工具输出与 Web API 返回的对象都可被无损序列化。
+ */
+function withoutUndefined<T extends object>(value: T): T {
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== undefined) out[key] = item
+  }
+  return out as T
+}
+
 /** 行 → Task。 */
 interface TaskRow {
   id: string
@@ -323,7 +337,7 @@ export class SqliteAutomationStore implements AutomationStore {
   createTask(input: CreateTaskInput): Task {
     const now = new Date().toISOString()
     const task: Task = {
-      ...input,
+      ...withoutUndefined(input),
       id: makeId('task'),
       created_at: now,
       updated_at: now,
@@ -344,7 +358,11 @@ export class SqliteAutomationStore implements AutomationStore {
   updateTask(id: string, patch: Partial<CreateTaskInput>): Task | undefined {
     const existing = this.getTask(id)
     if (existing === undefined) return undefined
-    const next: Task = { ...existing, ...patch, id, updated_at: new Date().toISOString() }
+    const next: Task = {
+      ...withoutUndefined({ ...existing, ...patch }),
+      id,
+      updated_at: new Date().toISOString(),
+    }
     this.db.prepare(`
       UPDATE tasks SET name = ?, description = ?, enabled = ?, action_json = ?,
         context_json = ?, concurrency = ?, retry_json = ?, timeout_seconds = ?,

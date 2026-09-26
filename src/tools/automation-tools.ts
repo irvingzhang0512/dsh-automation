@@ -223,17 +223,17 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
       render: (_args, value) => [textBlock(textOf(value as never))],
     },
     execute: async (args) => {
-      const input = {
+      const input: Record<string, unknown> = {
         name: args.name,
         description: args.description,
         enabled: true,
         action: args.action!,
-        context: args.context,
-        concurrency: args.concurrency,
-        retry: args.retry,
-        timeout_seconds: args.timeout_seconds,
         created_by: 'llm',
-      } as const
+      }
+      if (args.context !== undefined) input.context = args.context
+      if (args.concurrency !== undefined) input.concurrency = args.concurrency
+      if (args.retry !== undefined) input.retry = args.retry
+      if (args.timeout_seconds !== undefined) input.timeout_seconds = args.timeout_seconds
       return service.createTask(input as never) as never
     },
   }))

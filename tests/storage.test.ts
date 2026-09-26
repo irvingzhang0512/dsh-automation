@@ -27,6 +27,13 @@ function runInput(taskId: string, triggerId: string, overrides: Partial<Run> = {
   }
 }
 
+/** 递归检查是否含值为 undefined 的自身属性（无损 JSON 契约）。 */
+function hasNestedUndefined(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false
+  if (Array.isArray(value)) return value.some(hasNestedUndefined)
+  return Object.entries(value as Record<string, unknown>).some(([, item]) => item === undefined || hasNestedUndefined(item))
+}
+
 describe('SqliteAutomationStore', () => {
   const memory = createMemoryStore()
   const store: AutomationStore = memory.store
@@ -50,6 +57,30 @@ describe('SqliteAutomationStore', () => {
     expect(got?.action).toEqual(task.action)
 
     expect(store.listTasks().some(t => t.id === task.id)).toBe(true)
+  })
+
+  it('createTask 丢弃输入中的 undefined 可选字段（无损 JSON 契约）', () => {
+    const input: CreateTaskInput = {
+      ...taskInput('带 undefined 输入'),
+      context: undefined,
+      concurrency: undefined,
+      retry: undefined,
+      timeout_seconds: undefined,
+    }
+    const task = store.createTask(input)
+    expect(hasNestedUndefined(task)).toBe(false)
+    expect('context' in task).toBe(false)
+    expect('concurrency' in task).toBe(false)
+    expect('retry' in task).toBe(false)
+    expect('timeout_seconds' in task).toBe(false)
+  })
+
+  it('updateTask 最小补丁不产生 undefined 属性', () => {
+    const task = store.createTask(taskInput('待更新最小'))
+    const updated = store.updateTask(task.id, { name: '仅改名' })
+    expect(updated?.name).toBe('仅改名')
+    expect(hasNestedUndefined(updated)).toBe(false)
+    expect('context' in updated!).toBe(false)
   })
 
   it('updateTask 部分更新', () => {
