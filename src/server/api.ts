@@ -313,7 +313,7 @@ export function automationRoutes(service: AutomationService): ApiRoute[] {
 /** 挂载全部路由到 webServer，返回 disposer。 */
 export function mountAutomationRoutes(
   ctx: {
-    webServer: { register(route: { kind: 'exact'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }): () => void }
+    webServer: { register(route: { kind: 'prefix'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }): () => void }
     webRuntime: AutomationWebRuntime
   },
   service: AutomationService,
@@ -331,8 +331,11 @@ export function mountAutomationRoutes(
       return false
     }
   }
-  // 宿主 webServer 的 exact 路由按 path 唯一（不区分 method），同 path 多 method
-  // 需合并注册为一个路由，在 handler 内按请求 method 分发；未声明的方法返回 405。
+  // 宿主 webServer 的 exact 路由按原始 path 字符串匹配（不展开 :param 模式段），
+  // 把 /tasks/:id 等参数化路径注册为 exact 永远无法命中，请求会落到宿主的 /api
+  // RPC 通道并返回非 JSON 404。因此这里注册单一 prefix 路由（最长 prefix 优先，
+  // /api/automation 会正确压过宿主的 /api 通道），在 handler 内自行做模式匹配与
+  // method 分发；未声明的方法返回 405 + Allow 头（与 dshmarket 一致）。
   const byPath = new Map<string, Map<string, ApiRoute>>()
   for (const route of automationRoutes(service)) {
     let byMethod = byPath.get(route.path)
@@ -342,21 +345,18 @@ export function mountAutomationRoutes(
     }
     byMethod.set(route.method, route)
   }
-  for (const [path, byMethod] of byPath) {
-    disposers.push(ctx.webServer.register({
-      kind: 'exact',
-      path,
-      handler: async (req, res) => {
-        if (!fence(req)) {
-          json(res, 403, { ok: false, code: 'FORBIDDEN', message: '来源不被信任。' })
-          return
-        }
-        const url = new URL(req.url ?? '', 'http://localhost')
+  disposers.push(ctx.webServer.register({
+    kind: 'prefix',
+    path: '/api/automation',
+    handler: async (req, res) => {
+      if (!fence(req)) {
+        json(res, 403, { ok: false, code: 'FORBIDDEN', message: '来源不被信任。' })
+        return
+      }
+      const url = new URL(req.url ?? '', 'http://localhost')
+      for (const [path, byMethod] of byPath) {
         const params = matchPath(path, url.pathname)
-        if (params === null) {
-          json(res, 404, { ok: false, code: 'NOT_FOUND', message: '路径不匹配。' })
-          return
-        }
+        if (params === null) continue
         const route = byMethod.get(req.method ?? '')
         if (route === undefined) {
           const allowed = [...byMethod.keys()].join(', ')
@@ -370,9 +370,11 @@ export function mountAutomationRoutes(
         } catch (err) {
           json(res, 400, { ok: false, code: 'BAD_REQUEST', message: err instanceof Error ? err.message : String(err) })
         }
-      },
-    }))
-  }
+        return
+      }
+      json(res, 404, { ok: false, code: 'NOT_FOUND', message: '路径不匹配。' })
+    },
+  }))
   return () => {
     for (const dispose of disposers) {
       try {
