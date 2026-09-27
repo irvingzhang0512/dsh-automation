@@ -22,6 +22,7 @@ import { AgentActionExecutor, makeSkillLoader } from './actions/agent.ts'
 import { SqliteAutomationStore, resolveAutomationDataDir } from './storage/sqlite.ts'
 import { loadBundledSkill, BUNDLED_SKILL_DIR } from './host/skill-registration.ts'
 import { AUTOMATION_CONFIG_NS, AutomationConfigSchema, DEFAULT_CONFIG, normalizeConfig, type AutomationConfig } from './host/config.ts'
+import { isTrustedApiRequest } from './shared/request-trust.ts'
 import { registerAutomationTools } from './tools/automation-tools.ts'
 import { mountAutomationRoutes } from './server/api.ts'
 import type { Context } from './context-types.ts'
@@ -95,16 +96,9 @@ export function apply(ctx: Context, config: Partial<AutomationConfig> = {}): voi
   })
 
   // 状态推送 WebSocket（运行中 / 状态实时更新；第一版为可选增强）。
-  const fence = (req: IncomingMessage): boolean => {
-    const hosts = ctx.webRuntime.trustedHosts
-    const origin = req.headers.origin
-    if (origin === undefined) return true
-    try {
-      return hosts.includes(new URL(origin).host)
-    } catch {
-      return false
-    }
-  }
+  // 信任围栏：与 REST API 同一实现（Host 回环/可信权威 + 同源标记）。
+  const fence = (req: IncomingMessage): boolean =>
+    isTrustedApiRequest(req, ctx.webRuntime.trustedHosts)
   const wss = new WebSocketServer({ noServer: true })
   const bridgeDisposer = ctx.webServer.registerUpgrade({
     path: BRIDGE_PATH,

@@ -48,11 +48,12 @@ function mount(service: AutomationService): { routes: RegisteredRoute[]; dispose
 }
 
 /** 最小 IncomingMessage 假体（EventEmitter 供 readBody 使用）。 */
-function fakeReq(url: string, method: string, body?: unknown): IncomingMessage {
+function fakeReq(url: string, method: string, body?: unknown, extraHeaders: Record<string, string> = {}): IncomingMessage {
   const req = new EventEmitter() as unknown as IncomingMessage & { url: string; method: string; headers: Record<string, string> }
   req.url = url
   req.method = method
-  req.headers = {}
+  // 浏览器 / HTTP1.1 客户端总会带 Host；围栏按宿主语义要求 Host 可信。
+  req.headers = { host: '127.0.0.1:3080', ...extraHeaders }
   // 真实 HTTP 请求无论有无 body 都会触发 data/end；延迟发射等 readBody 挂上监听。
   setTimeout(() => {
     if (body !== undefined) {
@@ -170,6 +171,41 @@ describe('mountAutomationRoutes（prefix 挂载）', () => {
       const payload = res.json()
       expect(payload.ok).toBe(true)
       expect(typeof payload.run_id).toBe('string')
+    } finally {
+      dispose()
+      service.dispose()
+      ;(memory.store as { close(): void }).close()
+    }
+  })
+
+  it('回归：浏览器同源 POST（带 Origin）不再 403 来源不被信任', async () => {
+    const { memory, service } = createService()
+    const { routes, dispose } = mount(service)
+    try {
+      const created = service.createTask(taskInput('同源POST'))
+      const id = (created as { task: { id: string } }).task.id
+      const res = await invoke(routes[0]!.handler, fakeReq(`/api/automation/tasks/${id}/run`, 'POST', undefined, {
+        origin: 'http://127.0.0.1:3080',
+        'content-type': 'application/json',
+      }))
+      expect(res.status).toBe(200)
+      expect(res.json().ok).toBe(true)
+    } finally {
+      dispose()
+      service.dispose()
+      ;(memory.store as { close(): void }).close()
+    }
+  })
+
+  it('跨站 Origin 的 POST 返回 403 来源不被信任', async () => {
+    const { memory, service } = createService()
+    const { routes, dispose } = mount(service)
+    try {
+      const res = await invoke(routes[0]!.handler, fakeReq('/api/automation/status', 'GET', undefined, {
+        origin: 'http://evil.example',
+      }))
+      expect(res.status).toBe(403)
+      expect(res.json().message).toBe('来源不被信任。')
     } finally {
       dispose()
       service.dispose()

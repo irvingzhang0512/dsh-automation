@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2
+
+- **修复信任围栏**：REST API 与 WebSocket 桥的围栏改为与宿主 /api 网关一致的语义
+  （新增 `src/shared/request-trust.ts`，移植范式插件 dsh-structured-document-view）：
+  Host 必须为回环或匹配 `trustedHosts`；`sec-fetch-site: cross-site` 拒绝；带 `Origin`
+  时须与 Host 同主机。旧实现只做 `trustedHosts.includes(origin)`，默认 loopback 部署下
+  `trustedHosts` 为空，浏览器所有带 Origin 的 POST（立即运行 / 新建 / 编辑 / 删除）全部
+  403「来源不被信任」。host 侧改动，需重启 DSH 生效。
+
 ## 0.2.1
 
 - **改名**：用户可见入口与页面标题「自动任务」→「定时任务」（侧边栏入口、页面标题、SKILL 描述、README 同步；内部标识 `automation` / `dsh-automation` 不变）。

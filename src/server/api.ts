@@ -26,6 +26,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AutomationService } from '../core/service.ts'
 import type { AutomationWebRuntime } from '../context-types.ts'
 import type { AutomationResult, CreateTaskInput, TriggerInput } from '../shared/types.ts'
+import { isTrustedApiRequest } from '../shared/request-trust.ts'
 
 /** 路由定义。 */
 interface ApiRoute {
@@ -319,18 +320,9 @@ export function mountAutomationRoutes(
   service: AutomationService,
 ): () => void {
   const disposers: Array<() => void> = []
-  const fence = (req: IncomingMessage): boolean => {
-    // 信任围栏：与 /api 网关一致（同一 trustedHosts 来源）。
-    const hosts = ctx.webRuntime.trustedHosts
-    const origin = req.headers.origin
-    if (origin === undefined) return true
-    try {
-      const host = new URL(origin).host
-      return hosts.includes(host)
-    } catch {
-      return false
-    }
-  }
+  // 信任围栏：与 /api 网关一致（Host 回环/可信权威 + 同源标记），见 shared/request-trust.ts。
+  const fence = (req: IncomingMessage): boolean =>
+    isTrustedApiRequest(req, ctx.webRuntime.trustedHosts)
   // 宿主 webServer 的 exact 路由按原始 path 字符串匹配（不展开 :param 模式段），
   // 把 /tasks/:id 等参数化路径注册为 exact 永远无法命中，请求会落到宿主的 /api
   // RPC 通道并返回非 JSON 404。因此这里注册单一 prefix 路由（最长 prefix 优先，
