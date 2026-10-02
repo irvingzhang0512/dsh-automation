@@ -1,8 +1,11 @@
 # dsh-automation
 
+当前功能与验收以 [docs/SPEC.md](docs/SPEC.md) 为入口；原始需求保留为历史来源，技术契约见规格内的文档索引。功能任务先改规格再实现，Bug 按已有预期查源码修复。
+
+
 DSH（DeepSeek Harness）定时任务插件：统一管理“按时间自动执行”的任务。
 
-> 完整需求规格见 [dsh-automation-requirements.md](./dsh-automation-requirements.md)。
+> 只读历史需求来源见 [dsh-automation-requirements.md](./dsh-automation-requirements.md)。
 
 ## 快速开始
 
@@ -32,9 +35,9 @@ DSH（DeepSeek Harness）定时任务插件：统一管理“按时间自动执�
   支持取消某一次 Run、失败重试、超时；
 - **并发策略**：skip（默认）/ queue / parallel；
 - **后台调度**：Trigger Engine + Task Queue + Worker + Run Manager + Retry Manager，
-  与 `dsh web` 生命周期解耦，Web 重启不影响后台调度与长期任务；
+  由宿主服务承载，关闭浏览器不会停止调度；停止或重启宿主会停止服务，持久化历史不代表原运行进程继续；
 - **SQLite 持久化**：Node 内置 `node:sqlite`，数据目录遵循 DSH 统一规范 `~/.dsh/data/automation/`；
-- **配置项**：数据目录、默认超时、调度轮询间隔、备份保留份数，可在 DSH 设置页修改，实时生效；
+- **配置项**：数据目录、默认超时、调度轮询间隔、备份保留份数，可在 DSH 设置页修改；按现行契约，服务／存储在初始化时读取参数，设置保存后重新挂载生效，见 [SPEC F010](docs/SPEC.md#f010-配置生效边界)；
 - **16 个 automation 工具**：供 LLM / Skill 通过工具统一管理任务；
 - **automation Skill**：教 LLM 解析自然语言请求并调用工具；
 - **Web 主页面**：左上“定时任务”入口（与“新会话”“日程”同款卡片样式）+ `/automation` 页面（任务 / 待运行 / 运行中 / 历史 四 Tab + 新建任务 Drawer + 任务详情）。
@@ -70,14 +73,14 @@ npm run build
 
 ## 配置
 
-配置项在 DSH 设置页「定时任务」设置卡中修改（保存到 `~/.dsh/settings.yaml`，实时生效）：
+配置项在 DSH 设置页「定时任务」设置卡中修改（保存到当前 DSH 环境的设置；生效边界见下表与 SPEC F008）：
 
 | 字段 | 说明 | 默认 |
 |---|---|---|
-| `dataDir` | 数据目录覆盖；留空按 DSH 规范自动解析 | 空 |
-| `defaultTimeoutSeconds` | 任务未单独配置超时时的默认值 | 1800 |
+| `dataDir` | 数据目录覆盖；留空按 DSH 规范自动解析，修改需重新挂载 | 空 |
+| `defaultTimeoutSeconds` | 任务未单独配置超时时的默认值；服务初始化时读取，修改需重新挂载 | 1800 |
 | `tickMs` | 调度轮询间隔（毫秒）；修改后需重启 DSH 生效 | 1000 |
-| `keepBackups` | SQLite 备份保留份数（0 关闭备份） | 10 |
+| `keepBackups` | SQLite 备份保留份数（0 关闭备份）；存储实例重新挂载后生效 | 10 |
 
 ## 文档
 
