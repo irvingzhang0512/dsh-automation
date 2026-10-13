@@ -31,3 +31,11 @@
 测试记录在维护仓库忽略的.local/desktop-automation-020和.local/desktop-automation-final-020，含host-verification、daily-copy-verification、actual-official-migration、all-eight-invalid-conflict、robust-ui-matrix、robust-drafts、visible-theme-layout及可见截图。凭据、URL令牌和原始私人任务不提交。
 
 历史environment.json／versions.lock.json保持原组合；新组合单列候选，不作为安装／恢复输入。全仓7天完整巡检仍待办，本次局部开发不代替全量兼容验证。
+
+## 收尾复查
+
+固定Git安装后的直接任务表单深色控件原有白底浅字问题已修复；日志背景改用主题变量，任务操作支持窄屏换行。类型／构建／客户端产物冒烟和可见原生1280／600深色截图复验通过，逐张检查像素。命令／脚本选项中文化，未保存表单不创建测试任务。
+
+pnpm peers check在孤立profile图中提示未登记Cordis／Schemastery；未删除必需peer或开豁免。实际Desktop安装包分别提供4.0.4／3.18.4，原生和carrier均正常挂载。此处证明的是Desktop宿主提供依赖的安装通道，不是独立Node进程直接导入可运行；公开来源安装仍待发布后验证。
+
+所有所属host／native隔离主进程及子进程均已正常停止，日常安装与快照保持。维护候选锁记录最终完整Git提交，产物与最后测试版本对应。
