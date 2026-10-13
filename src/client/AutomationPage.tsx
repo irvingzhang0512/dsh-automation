@@ -11,7 +11,7 @@
  */
 import { createElement, useEffect, useState } from 'react'
 import {
-  api, type HistoryWire, type RunningWire, type TaskWire, type TriggerWire, type UpcomingWire,
+  api, type RunWire, type HistoryWire, type RunningWire, type TaskWire, type TriggerWire, type UpcomingWire,
 } from './api.ts'
 
 /**
@@ -59,8 +59,8 @@ function AutomationPageImpl() {
     { className: 'da-root', style: { padding: '16px 20px', minWidth: 0 } },
     createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } },
       createElement('div', null,
-        createElement('h1', { style: { fontSize: 18, margin: 0 } }, '定时任务'),
-        createElement('div', { style: { fontSize: 12, color: '#888', marginTop: 2 } },
+        createElement('h1', { style: { fontSize: 18, margin: 0 } }, '直接执行任务'),
+        createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)', marginTop: 2 } },
           status === null
             ? '…'
             : `调度${status.running ? '运行中' : '已停止'} · 队列 ${status.queued} · 运行中 ${status.active} · 数据 ${status.homeDir}`,
@@ -94,7 +94,7 @@ const tabs: { key: TabKey; label: string }[] = [
 /* ---------------- 样式 ---------------- */
 
 const buttonStyle: React.CSSProperties = {
-  padding: '6px 12px', border: '1px solid #d0d0d0', borderRadius: 6, background: '#fff',
+  padding: '6px 12px', border: '1px solid #d0d0d0', borderRadius: 6, background: 'var(--dsw-alias-bg-layer-1,#fff)',
   cursor: 'pointer', fontSize: 13,
 }
 
@@ -122,7 +122,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
     let alive = true
     setTasks(null)
     void api.listTasks().then(r => {
-      if (alive) setTasks(r.tasks)
+      if (alive) setTasks(r.tasks.filter(task => task.action.type === 'command' || task.action.type === 'script'))
     }).catch(e => {
       if (alive) setError(e instanceof Error ? e.message : String(e))
     })
@@ -137,7 +137,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
     createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
       (tasks ?? []).map(task => createElement('div', {
         key: task.id,
-        style: { border: '1px solid #e5e5e5', borderRadius: 8, padding: '10px 14px', background: '#fff' },
+        style: { border: '1px solid #e5e5e5', borderRadius: 8, padding: '10px 14px', background: 'var(--dsw-alias-bg-layer-1,#fff)' },
       },
         createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } },
           createElement('div', { style: { minWidth: 0 } },
@@ -151,7 +151,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
                 },
               }, task.enabled ? '启用' : '暂停'),
             ),
-            createElement('div', { style: { fontSize: 12, color: '#888', marginTop: 2 } },
+            createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)', marginTop: 2 } },
               `${actionLabel(task.action)}${task.concurrency !== undefined ? ` · 并发:${task.concurrency}` : ''}${task.timeout_seconds !== undefined ? ` · 超时:${task.timeout_seconds}s` : ''}`,
             ),
           ),
@@ -164,12 +164,12 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
           ),
         ),
       )),
-      tasks !== null && tasks.length === 0 && createElement('div', { style: { color: '#888', fontSize: 13, padding: '20px 16px', textAlign: 'center', lineHeight: 1.8 } },
+      tasks !== null && tasks.length === 0 && createElement('div', { style: { color: 'var(--dsw-alias-label-secondary,#888)', fontSize: 13, padding: '20px 16px', textAlign: 'center', lineHeight: 1.8 } },
         '还没有定时任务。创建方式有两种：',
         createElement('br'),
-        createElement('span', null, '① 点右上角「+ 新建任务」，填写名称、执行动作与执行时间；'),
+        createElement('span', null, '① 点右上角「+ 新建任务」，填写命令或脚本及执行时间；'),
         createElement('br'),
-        createElement('span', null, '② 直接对助手说，例如「每天晚上 8 点运行项目日报」——会自动帮你创建。'),
+        createElement('span', null, '② 对助手说明定时执行哪个命令或脚本。会话与Skill任务请使用官方自动化任务。'),
       ),
       tasks === null && error === null && createElement('div', { style: { color: '#999', fontSize: 13, padding: 16 } }, '加载中…'),
     ),
@@ -188,42 +188,41 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
 function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(props.task?.name ?? '')
   const [description, setDescription] = useState(props.task?.description ?? '')
-  const [actionType, setActionType] = useState<'skill' | 'agent_prompt' | 'command' | 'script'>(props.task?.action.type ?? 'skill')
-  const [actionSkill, setActionSkill] = useState(props.task?.action.skill ?? '')
-  const [actionAgent, setActionAgent] = useState(props.task?.action.agent ?? '')
-  const [actionPrompt, setActionPrompt] = useState(props.task?.action.prompt ?? '')
+  const [actionType, setActionType] = useState<'command' | 'script'>(props.task?.action.type === 'script' ? 'script' : 'command')
   const [actionCommand, setActionCommand] = useState(props.task?.action.command ?? '')
   const [actionPath, setActionPath] = useState(props.task?.action.path ?? '')
-  const [actionArgs, setActionArgs] = useState(props.task?.action.args?.join(' ') ?? '')
+  const [actionArgs, setActionArgs] = useState(props.task?.action.args?.join('\n') ?? '')
   const [concurrency, setConcurrency] = useState<'skip' | 'queue' | 'parallel'>(props.task?.concurrency ?? 'skip')
   const [timeoutSec, setTimeoutSec] = useState(props.task?.timeout_seconds?.toString() ?? '')
   const [retryEnabled, setRetryEnabled] = useState(props.task?.retry?.enabled ?? false)
   const [retryMax, setRetryMax] = useState(props.task?.retry?.max_attempts?.toString() ?? '2')
   const [retryDelay, setRetryDelay] = useState(props.task?.retry?.delay_seconds?.toString() ?? '60')
   // Trigger（新建时可选添加一个）。
-  const [triggerType, setTriggerType] = useState<'daily' | 'hourly' | 'weekly' | 'monthly' | 'once' | 'cron'>('daily')
+  const [triggerType, setTriggerType] = useState<'daily' | 'hourly' | 'weekly' | 'weekday' | 'monthly' | 'once' | 'cron'>('daily')
   const [triggerTime, setTriggerTime] = useState('09:00')
   const [triggerWeekday, setTriggerWeekday] = useState('1')
   const [triggerDay, setTriggerDay] = useState('1')
   const [triggerMinute, setTriggerMinute] = useState('0')
   const [triggerAt, setTriggerAt] = useState('')
   const [triggerExpr, setTriggerExpr] = useState('0 18 * * *')
+  const [cwd,setCwd] = useState(props.task?.context?.cwd ?? '')
+  const [envText,setEnvText] = useState(Object.entries(props.task?.context?.env ?? {}).map(([key,value]) => key + '=' + value).join('\n'))
+  const [interpreter,setInterpreter] = useState(props.task?.action.interpreter ?? '')
+  const [shell,setShell] = useState(props.task?.action.shell ?? false)
+  const [timeZone,setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [weekdaySet,setWeekdaySet] = useState('1,2,3,4,5')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const buildAction = (): Record<string, unknown> => {
     switch (actionType) {
-      case 'skill':
-        return { type: 'skill', skill: actionSkill, ...(actionPrompt !== '' ? { prompt: actionPrompt } : {}) }
-      case 'agent_prompt':
-        return { type: 'agent_prompt', agent: actionAgent, prompt: actionPrompt }
       case 'command': {
         const args = splitArgs(actionArgs)
-        return { type: 'command', command: actionCommand, ...(args.length > 0 ? { args } : {}) }
+        return { type: 'command', command: actionCommand, shell, ...(args.length > 0 ? { args } : {}) }
       }
       case 'script': {
         const args = splitArgs(actionArgs)
-        return { type: 'script', path: actionPath, ...(args.length > 0 ? { args } : {}) }
+        return { type: 'script', path: actionPath, ...(interpreter ? { interpreter } : {}), ...(args.length > 0 ? { args } : {}) }
       }
     }
   }
@@ -236,6 +235,8 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
         return { type: 'hourly', minute: Number(triggerMinute) }
       case 'daily':
         return { type: 'daily', time: triggerTime }
+      case 'weekday':
+        return { type: 'weekday', weekdays: weekdaySet.split(',').map(Number), time: triggerTime }
       case 'weekly':
         return { type: 'weekly', weekday: Number(triggerWeekday), time: triggerTime }
       case 'monthly':
@@ -250,9 +251,8 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
       setError('请填写任务名称。')
       return
     }
-    const action = buildAction()
-    if (action.type === 'skill' && action.skill === '') { setError('请填写 Skill 名称。'); return }
-    if (action.type === 'agent_prompt' && action.agent === '') { setError('请填写 Agent 名称。'); return }
+    let action: Record<string,unknown>
+    try { action = buildAction() } catch (error) { setError((error as Error).message); return }
     if (action.type === 'command' && action.command === '') { setError('请填写命令。'); return }
     if (action.type === 'script' && action.path === '') { setError('请填写脚本路径。'); return }
     setSaving(true)
@@ -262,21 +262,14 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
         name: name.trim(),
         description: description !== '' ? description : undefined,
         action,
+        context: { ...(cwd ? { cwd } : {}), env: parseEnvironment(envText) },
         concurrency,
+        ...(props.mode === 'create' ? { triggers: [{ ...buildTrigger(), time_zone: timeZone }] } : {}),
         ...(timeoutSec !== '' ? { timeout_seconds: Number(timeoutSec) } : {}),
-        ...(retryEnabled ? { retry: { enabled: true, max_attempts: Number(retryMax) || 2, delay_seconds: Number(retryDelay) || 60 } } : {}),
+        retry: { enabled: retryEnabled, max_attempts: Number(retryMax), delay_seconds: Number(retryDelay) },
       }
       if (props.mode === 'create') {
-        const created = await api.createTask(input)
-        // 新建时若用户填了 Trigger，则添加。
-        if (triggerType !== 'once' || triggerAt !== '') {
-          try {
-            await api.addTrigger(created.task.id, buildTrigger())
-          } catch (e) {
-            // Trigger 失败不阻塞任务创建。
-            void e
-          }
-        }
+        await api.createTask(input)
       } else if (props.task !== undefined) {
         await api.updateTask(props.task.id, input)
       }
@@ -288,7 +281,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
     }
   }
 
-  const fieldLabel: React.CSSProperties = { fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }
+  const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#666)', marginBottom: 4, display: 'block' }
   const inputStyle: React.CSSProperties = { width: '100%', padding: '6px 8px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' }
 
   return createElement('div', {
@@ -299,7 +292,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
     onClick: props.onClose,
   },
     createElement('div', {
-      style: { width: 440, maxWidth: '92vw', background: '#fff', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
+      style: { width: 440, maxWidth: '92vw', background: 'var(--dsw-alias-bg-layer-1,#fff)', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
       onClick: (e: ClickEvent) => e.stopPropagation(),
     },
       createElement('h2', { style: { fontSize: 16, margin: '0 0 16px' } }, props.mode === 'create' ? '新建定时任务' : `编辑定时任务 · ${props.task?.name ?? ''}`),
@@ -318,23 +311,11 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
         createElement('div', null,
           createElement('label', { style: fieldLabel }, '执行动作 *'),
           createElement('select', { style: inputStyle, value: actionType, onChange: (e: ChangeEvent) => setActionType(e.target.value as never) },
-            createElement('option', { value: 'skill' }, 'Skill'),
-            createElement('option', { value: 'agent_prompt' }, 'Agent Prompt'),
+
+
             createElement('option', { value: 'command' }, 'Command'),
             createElement('option', { value: 'script' }, 'Script'),
           ),
-        ),
-        actionType === 'skill' && createElement('div', null,
-          createElement('label', { style: fieldLabel }, 'Skill 名称 *'),
-          createElement('input', { style: inputStyle, value: actionSkill, onChange: (e: ChangeEvent) => setActionSkill(e.target.value), placeholder: '如：project-daily-report' }),
-        ),
-        (actionType === 'skill' || actionType === 'agent_prompt') && createElement('div', null,
-          createElement('label', { style: fieldLabel }, actionType === 'skill' ? '附加指令（可选）' : 'Prompt *'),
-          createElement('textarea', { style: { ...inputStyle, minHeight: 60, resize: 'vertical' }, value: actionPrompt, onChange: (e: ChangeEvent) => setActionPrompt(e.target.value) }),
-        ),
-        actionType === 'agent_prompt' && createElement('div', null,
-          createElement('label', { style: fieldLabel }, 'Agent *'),
-          createElement('input', { style: inputStyle, value: actionAgent, onChange: (e: ChangeEvent) => setActionAgent(e.target.value), placeholder: 'Agent 名称 / 会话标识' }),
         ),
         actionType === 'command' && createElement('div', null,
           createElement('label', { style: fieldLabel }, '命令 *'),
@@ -345,9 +326,15 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
           createElement('input', { style: inputStyle, value: actionPath, onChange: (e: ChangeEvent) => setActionPath(e.target.value), placeholder: '如：scripts/daily.py' }),
         ),
         (actionType === 'command' || actionType === 'script') && createElement('div', null,
-          createElement('label', { style: fieldLabel }, '参数（空格分隔，可选）'),
-          createElement('input', { style: inputStyle, value: actionArgs, onChange: (e: ChangeEvent) => setActionArgs(e.target.value) }),
+          createElement('label', { style: fieldLabel }, '参数（每行一个，保留空格）'),
+          createElement('textarea', { style: inputStyle, value: actionArgs, onChange: (e: ChangeEvent) => setActionArgs(e.target.value) }),
         ),
+        createElement('div',null,createElement('label',{style:fieldLabel},'工作目录'),createElement('input',{style:inputStyle,value:cwd,onChange:(e:ChangeEvent)=>setCwd(e.target.value)})),
+        createElement('div',null,createElement('label',{style:fieldLabel},'环境变量（每行 NAME=值）'),createElement('textarea',{style:inputStyle,value:envText,onChange:(e:ChangeEvent)=>setEnvText(e.target.value)})),
+        actionType === 'script' && createElement('div',null,createElement('label',{style:fieldLabel},'解释器覆盖（可选）'),createElement('input',{style:inputStyle,value:interpreter,onChange:(e:ChangeEvent)=>setInterpreter(e.target.value),placeholder:'自动选择 Python、Bash、PowerShell 或 Node'})),
+        actionType === 'command' && createElement('label',{style:fieldLabel},createElement('input',{type:'checkbox',checked:shell,onChange:(e:ChangeEvent)=>setShell(e.target.checked)}),'通过系统 Shell 执行'),
+        props.mode === 'create' && createElement('div',null,createElement('label',{style:fieldLabel},'执行时区'),createElement('input',{style:inputStyle,value:timeZone,onChange:(e:ChangeEvent)=>setTimeZone(e.target.value)})),
+        props.mode === 'create' && triggerType === 'weekday' && createElement('div',null,createElement('label',{style:fieldLabel},'星期编号（0周日，1–6周一至周六，逗号分隔）'),createElement('input',{style:inputStyle,value:weekdaySet,onChange:(e:ChangeEvent)=>setWeekdaySet(e.target.value)}),createElement('input',{style:inputStyle,type:'time',value:triggerTime,onChange:(e:ChangeEvent)=>setTriggerTime(e.target.value)})),
         /* 并发 / 超时 */
         createElement('div', { style: { display: 'flex', gap: 12 } },
           createElement('div', { style: { flex: 1 } },
@@ -387,6 +374,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
             createElement('option', { value: 'daily' }, '每天'),
             createElement('option', { value: 'hourly' }, '每小时'),
             createElement('option', { value: 'weekly' }, '每周'),
+              createElement('option', { value: 'weekday' }, '指定星期'),
             createElement('option', { value: 'monthly' }, '每月'),
             createElement('option', { value: 'once' }, '仅一次'),
             createElement('option', { value: 'cron' }, 'Cron（高级）'),
@@ -431,20 +419,23 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
 /* ---------------- 任务详情 ---------------- */
 
 function TaskDetail(props: { taskId: string; onClose: () => void; onChanged: () => void }) {
-  const [data, setData] = useState<{ task: TaskWire; triggers: TriggerWire[]; runs: HistoryWire[] } | null>(null)
+  const [data, setData] = useState<{ task: TaskWire; triggers: TriggerWire[]; runs: RunWire[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [newTriggerType, setNewTriggerType] = useState<'daily' | 'hourly' | 'weekly' | 'monthly' | 'once' | 'cron'>('daily')
+  const [newTriggerType, setNewTriggerType] = useState<'daily' | 'hourly' | 'weekly' | 'weekday' | 'monthly' | 'once' | 'cron'>('daily')
   const [newTriggerTime, setNewTriggerTime] = useState('09:00')
   const [newTriggerWeekday, setNewTriggerWeekday] = useState('1')
   const [newTriggerDay, setNewTriggerDay] = useState('1')
   const [newTriggerMinute, setNewTriggerMinute] = useState('0')
+  const [editingTrigger,setEditingTrigger] = useState<string | null>(null)
+  const [newTimeZone,setNewTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [newWeekdays,setNewWeekdays] = useState('1,2,3,4,5')
   const [newTriggerAt, setNewTriggerAt] = useState('')
   const [newTriggerExpr, setNewTriggerExpr] = useState('0 18 * * *')
 
   useEffect(() => {
     let alive = true
     void api.getTask(props.taskId).then(r => {
-      if (alive) setData({ task: r.task, triggers: r.triggers, runs: r.runs as unknown as HistoryWire[] })
+      if (alive) setData({ task: r.task, triggers: r.triggers, runs: r.runs })
     }).catch(e => {
       if (alive) setError(e instanceof Error ? e.message : String(e))
     })
@@ -458,18 +449,21 @@ function TaskDetail(props: { taskId: string; onClose: () => void; onChanged: () 
       case 'once': config = { type: 'once', at: newTriggerAt }; break
       case 'hourly': config = { type: 'hourly', minute: Number(newTriggerMinute) }; break
       case 'daily': config = { type: 'daily', time: newTriggerTime }; break
+      case 'weekday': config = { type: 'weekday', weekdays: newWeekdays.split(',').map(Number), time: newTriggerTime }; break
       case 'weekly': config = { type: 'weekly', weekday: Number(newTriggerWeekday), time: newTriggerTime }; break
       case 'monthly': config = { type: 'monthly', day: Number(newTriggerDay), time: newTriggerTime }; break
       case 'cron': config = { type: 'cron', expr: newTriggerExpr }; break
     }
-    await api.addTrigger(data.task.id, config)
+    if (editingTrigger) await api.updateTrigger(editingTrigger, { config: { ...config, time_zone: newTimeZone } })
+    else await api.addTrigger(data.task.id, { ...config, time_zone: newTimeZone })
+    setEditingTrigger(null)
     props.onChanged()
     const fresh = await api.getTask(props.taskId)
-    setData({ task: fresh.task, triggers: fresh.triggers, runs: fresh.runs as unknown as HistoryWire[] })
+    setData({ task: fresh.task, triggers: fresh.triggers, runs: fresh.runs })
   }
 
   const inputStyle: React.CSSProperties = { padding: '5px 8px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 13 }
-  const fieldLabel: React.CSSProperties = { fontSize: 12, color: '#666', marginBottom: 4, display: 'block' }
+  const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#666)', marginBottom: 4, display: 'block' }
 
   return createElement('div', {
     style: {
@@ -479,7 +473,7 @@ function TaskDetail(props: { taskId: string; onClose: () => void; onChanged: () 
     onClick: props.onClose,
   },
     createElement('div', {
-      style: { width: 520, maxWidth: '94vw', background: '#fff', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
+      style: { width: 520, maxWidth: '94vw', background: 'var(--dsw-alias-bg-layer-1,#fff)', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
       onClick: (e: ClickEvent) => e.stopPropagation(),
     },
       error !== null && createElement('div', { style: { color: '#c0392b' } }, error),
@@ -490,7 +484,7 @@ function TaskDetail(props: { taskId: string; onClose: () => void; onChanged: () 
             createElement('h2', { style: { fontSize: 16, margin: 0 } }, data.task.name),
             createElement('button', { style: smallButtonStyle, onClick: props.onClose }, '关闭'),
           ),
-          createElement('div', { style: { fontSize: 12, color: '#888', marginTop: 4 } },
+          createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)', marginTop: 4 } },
             `动作: ${actionLabel(data.task.action)} · 并发: ${data.task.concurrency ?? 'skip'}`,
           ),
         ),
@@ -499,9 +493,10 @@ function TaskDetail(props: { taskId: string; onClose: () => void; onChanged: () 
           createElement('h3', { style: { fontSize: 13, margin: '0 0 8px' } }, `执行时间（${data.triggers.length}）`),
           createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
             data.triggers.map(t => createElement('div', { key: t.id, style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid #eee', borderRadius: 6, padding: '6px 10px' } },
-              createElement('span', { style: { fontSize: 13 } }, `${triggerLabel(t.config)} ${t.enabled ? '' : '（已停用）'}`),
+              createElement('button', { style: smallButtonStyle, onClick: () => { setEditingTrigger(t.id); setNewTriggerType(t.config.type as any); setNewTriggerTime(String(t.config.time ?? '09:00')); setNewTimeZone(String(t.config.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)); setNewTriggerAt(String(t.config.at ?? '')); setNewTriggerMinute(String(t.config.minute ?? 0)); setNewTriggerDay(String(t.config.day ?? 1)); setNewTriggerWeekday(String(t.config.weekday ?? 1)); setNewWeekdays((t.config.weekdays as number[] ?? [1,2,3,4,5]).join(',')); setNewTriggerExpr(String(t.config.expr ?? '0 18 * * *')) } }, '编辑'),
+              createElement('span', { style: { fontSize: 13 } }, `${triggerLabel(t.config)} · ${t.config.time_zone ?? '系统时区'} ${t.enabled ? '' : '（已停用）'}`),
               createElement('div', { style: { display: 'flex', gap: 4 } },
-                createElement('button', { style: { ...smallButtonStyle, ...dangerButtonStyle }, onClick: () => { void api.deleteTrigger(t.id).then(async () => { props.onChanged(); const fresh = await api.getTask(props.taskId); setData({ task: fresh.task, triggers: fresh.triggers, runs: fresh.runs as unknown as HistoryWire[] }) }).catch(alertError) } }, '删除'),
+                createElement('button', { style: { ...smallButtonStyle, ...dangerButtonStyle }, onClick: () => { void api.deleteTrigger(t.id).then(async () => { props.onChanged(); const fresh = await api.getTask(props.taskId); setData({ task: fresh.task, triggers: fresh.triggers, runs: fresh.runs }) }).catch(alertError) } }, '删除'),
               ),
             )),
             data.triggers.length === 0 && createElement('div', { style: { color: '#999', fontSize: 13 } }, '还没有执行时间。'),
@@ -512,26 +507,30 @@ function TaskDetail(props: { taskId: string; onClose: () => void; onChanged: () 
               createElement('option', { value: 'daily' }, '每天'),
               createElement('option', { value: 'hourly' }, '每小时'),
               createElement('option', { value: 'weekly' }, '每周'),
+              createElement('option', { value: 'weekday' }, '指定星期'),
               createElement('option', { value: 'monthly' }, '每月'),
               createElement('option', { value: 'once' }, '仅一次'),
               createElement('option', { value: 'cron' }, 'Cron'),
             ),
             newTriggerType === 'once' && createElement('input', { style: inputStyle, value: newTriggerAt, onChange: (e: ChangeEvent) => setNewTriggerAt(e.target.value), placeholder: 'ISO 时刻' }),
             newTriggerType === 'hourly' && createElement('input', { style: { ...inputStyle, width: 70 }, value: newTriggerMinute, onChange: (e: ChangeEvent) => setNewTriggerMinute(e.target.value), placeholder: '分钟' }),
-            (newTriggerType === 'daily' || newTriggerType === 'weekly' || newTriggerType === 'monthly') && createElement('input', { style: { ...inputStyle, width: 110 }, type: 'time', value: newTriggerTime, onChange: (e: ChangeEvent) => setNewTriggerTime(e.target.value) }),
+            (newTriggerType === 'daily' || newTriggerType === 'weekly' || newTriggerType === 'monthly' || newTriggerType === 'weekday') && createElement('input', { style: { ...inputStyle, width: 110 }, type: 'time', value: newTriggerTime, onChange: (e: ChangeEvent) => setNewTriggerTime(e.target.value) }),
             newTriggerType === 'weekly' && createElement('select', { style: inputStyle, value: newTriggerWeekday, onChange: (e: ChangeEvent) => setNewTriggerWeekday(e.target.value) },
               weekdays.map(w => createElement('option', { key: w.value, value: String(w.value) }, w.label)),
             ),
             newTriggerType === 'monthly' && createElement('input', { style: { ...inputStyle, width: 70 }, value: newTriggerDay, onChange: (e: ChangeEvent) => setNewTriggerDay(e.target.value), placeholder: '日' }),
             newTriggerType === 'cron' && createElement('input', { style: { ...inputStyle, width: 180 }, value: newTriggerExpr, onChange: (e: ChangeEvent) => setNewTriggerExpr(e.target.value) }),
-            createElement('button', { style: smallButtonStyle, onClick: () => { void addTrigger().catch(alertError) } }, '添加'),
+            createElement('input',{style:inputStyle,value:newTimeZone,onChange:(e:ChangeEvent)=>setNewTimeZone(e.target.value),'aria-label':'执行时区'}),
+            newTriggerType === 'weekday' && createElement('input',{style:inputStyle,value:newWeekdays,onChange:(e:ChangeEvent)=>setNewWeekdays(e.target.value),'aria-label':'星期编号'}),
+            createElement('button', { style: smallButtonStyle, onClick: () => { void addTrigger().catch(alertError) } }, editingTrigger ? '保存执行时间' : '添加'),
+            editingTrigger && createElement('button',{style:smallButtonStyle,onClick:()=>setEditingTrigger(null)},'取消编辑'),
           ),
         ),
         /* 最近运行 */
         createElement('div', null,
           createElement('h3', { style: { fontSize: 13, margin: '0 0 8px' } }, '最近运行'),
           createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 4 } },
-            data.runs.slice(0, 10).map(r => createElement('div', { key: r.run_id, style: { display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#666', borderBottom: '1px solid #f2f2f2', padding: '4px 0' } },
+            data.runs.slice(0, 10).map(r => createElement('div', { key: r.id, style: { display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--dsw-alias-label-secondary,#666)', borderBottom: '1px solid #f2f2f2', padding: '4px 0' } },
               createElement('span', null, `${r.scheduled_at.replace('T', ' ').slice(0, 16)}`),
               createElement('span', { style: { color: statusColor(r.status) } }, statusLabel(r.status)),
             )),
@@ -567,7 +566,7 @@ function UpcomingTab(props: { refreshKey: number; onChanged: () => void }) {
       (items ?? []).map(item => createElement('div', { key: `${item.run_id}`, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #eee', borderRadius: 6, padding: '8px 12px' } },
         createElement('div', null,
           createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, item.task_name),
-          createElement('div', { style: { fontSize: 12, color: '#888' } }, `${item.trigger_label} · ${formatTime(item.scheduled_at)}`),
+          createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)' } }, `${item.trigger_label} · ${formatTime(item.scheduled_at)}`),
         ),
         createElement('div', { style: { display: 'flex', gap: 4 } },
           createElement('button', { style: smallButtonStyle, onClick: () => { void api.runNow(item.task_id).then(props.onChanged).catch(alertError) } }, '立即运行'),
@@ -604,7 +603,7 @@ function RunningTab(props: { refreshKey: number; onChanged: () => void }) {
       (items ?? []).map(item => createElement('div', { key: item.run_id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #eee', borderRadius: 6, padding: '8px 12px' } },
         createElement('div', null,
           createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, item.task_name),
-          createElement('div', { style: { fontSize: 12, color: '#888' } }, `已运行 ${Math.round(item.elapsed_ms / 1000)}s · ${formatTime(item.started_at)} 开始`),
+          createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)' } }, `已运行 ${Math.round(item.elapsed_ms / 1000)}s · ${formatTime(item.started_at)} 开始`),
         ),
         createElement('button', { style: { ...smallButtonStyle, ...dangerButtonStyle }, onClick: () => { void api.cancelRun(item.run_id).then(props.onChanged).catch(alertError) } }, '取消'),
       )),
@@ -635,7 +634,7 @@ function HistoryTab(props: { refreshKey: number; onChanged: () => void }) {
 
   return createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
     createElement('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-      createElement('label', { style: { fontSize: 13, color: '#666' } }, '状态:'),
+      createElement('label', { style: { fontSize: 13, color: 'var(--dsw-alias-label-secondary,#666)' } }, '状态:'),
       createElement('select', { style: { padding: '4px 8px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 13 }, value: statusFilter, onChange: (e: ChangeEvent) => setStatusFilter(e.target.value) },
         createElement('option', { value: '' }, '全部'),
         ['success', 'failed', 'cancelled', 'timeout', 'skipped', 'running', 'pending'].map(s => createElement('option', { key: s, value: s }, statusLabel(s))),
@@ -646,7 +645,7 @@ function HistoryTab(props: { refreshKey: number; onChanged: () => void }) {
       (items ?? []).map(item => createElement('div', { key: item.run_id, style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f2f2f2', padding: '6px 4px' } },
         createElement('div', null,
           createElement('div', { style: { fontSize: 13, fontWeight: 600 } }, item.task_name),
-          createElement('div', { style: { fontSize: 12, color: '#888' } },
+          createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)' } },
             `${formatTime(item.scheduled_at)}${item.duration_ms !== undefined ? ` · ${Math.round(item.duration_ms / 1000)}s` : ''}${item.error !== undefined ? ` · ${item.error.slice(0, 40)}` : ''}`,
           ),
         ),
@@ -683,7 +682,7 @@ function RunDetail(props: { runId: string; onClose: () => void }) {
     onClick: props.onClose,
   },
     createElement('div', {
-      style: { width: 560, maxWidth: '94vw', background: '#fff', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
+      style: { width: 560, maxWidth: '94vw', background: 'var(--dsw-alias-bg-layer-1,#fff)', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
       onClick: (e: ClickEvent) => e.stopPropagation(),
     },
       error !== null && createElement('div', { style: { color: '#c0392b' } }, error),
@@ -696,7 +695,7 @@ function RunDetail(props: { runId: string; onClose: () => void }) {
           ),
           createElement('button', { style: smallButtonStyle, onClick: props.onClose }, '关闭'),
         ),
-        createElement('div', { style: { fontSize: 12, color: '#888' } },
+        createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)' } },
           `计划: ${formatTime(data.run.scheduled_at)}`,
           data.run.started_at !== undefined ? ` · 开始: ${formatTime(data.run.started_at)}` : '',
           data.run.finished_at !== undefined ? ` · 结束: ${formatTime(data.run.finished_at)}` : '',
@@ -795,9 +794,9 @@ function formatTime(iso: string): string {
   }
 }
 
-/** 空格分词（参数输入）。 */
+/** 每行一个参数；参数内空格和引号按原样传入。 */
 function splitArgs(text: string): string[] {
-  return text.split(/\s+/).filter(part => part !== '')
+  return text.split(/\r?\n/).filter(part => part !== '')
 }
 
 /** 错误提示。 */
@@ -805,3 +804,5 @@ function alertError(e: unknown): void {
   // eslint-disable-next-line no-alert
   window.alert(e instanceof Error ? e.message : String(e))
 }
+
+function parseEnvironment(text: string): Record<string,string> { const result: Record<string,string> = {}; for (const line of text.split(/\r?\n/)) { if (!line.trim()) continue; const separator = line.indexOf('='); const key = line.slice(0,separator).trim(); if (separator < 1 || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw Error('环境变量请每行填写 NAME=值。'); result[key] = line.slice(separator+1) } return result }

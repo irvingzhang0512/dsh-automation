@@ -10,7 +10,7 @@
  * - Storage：SQLite 持久化。
  *
  * 生命周期：start() / stop()。与 Web 生命周期解耦——服务由宿主进程承载，
- * Web 页面关闭或 `dsh web` 重启不影响后台调度（服务重启后从持久化恢复）。
+ * 客户端关闭不拥有任务生命周期；宿主关闭停止调度，重启按明确恢复规则处理。
  *
  * 并发策略（需求 §19）：
  * - skip（默认）：已有同任务运行中 → 本次 Run 标记 skipped；
@@ -21,7 +21,7 @@ import type {
   AutomationId, AutomationStore, AutomationResult, CreateTaskInput, HistoryRun, Run,
   RunStatus, Task, Trigger, TriggerConfig, TriggerInput, UpcomingRun,
 } from '../shared/types.ts'
-import { normalizeTrigger, nextOccurrence, triggerLabel } from '../shared/time.ts'
+import { normalizeTrigger, nextOccurrence, triggerLabel, onceInstant, systemTimeZone, legacyRuleIssue } from '../shared/time.ts'
 import { TaskQueue } from './queue.ts'
 import { AutomationWorker, type ActionExecutor, type ActionLogFn } from './worker.ts'
 import { RunManager, type ActiveRun } from './run-manager.ts'
@@ -43,8 +43,10 @@ export interface AutomationServiceOptions {
 
 /** 宿主依赖（执行器解析等）。 */
 export interface AutomationHostDeps {
-  /** 按 Action 类型解析执行器（command/script 内置；skill/agent_prompt 宿主提供）。 */
+  /** 按直接 Action 类型解析执行器，旧模型动作不可执行。 */
   resolveExecutor(action: Task['action']): ActionExecutor | undefined
+  canExecute?: () => boolean
+  runtimeFacts?: () => unknown
 }
 
 /** 服务状态。 */
@@ -53,6 +55,7 @@ export interface ServiceStatus {
   queued: number
   active: number
   tickMs: number
+  compatibility?: unknown
   /** 数据目录（持久化位置）。 */
   homeDir: string
   startedAt?: string
@@ -87,14 +90,15 @@ export class AutomationService {
   private startedAt: string | undefined
   private running = false
   private stopped = false
+  private disposed = false
+  private readonly jobs = new Set<Promise<void>>()
+  private quiescing = false
 
-  /** 供重试的等待队列（延迟重试）。 */
-  private retryTimers = new Map<AutomationId, ReturnType<typeof setTimeout>>()
 
   constructor(store: AutomationStore, deps: AutomationHostDeps, options: AutomationServiceOptions = {}) {
     this.store = store
     this.deps = deps
-    // 配置优先级：configProvider（settings 实时读取）> 静态 options > 默认值。
+    // 配置优先级：configProvider（初始化读取）> 静态 options > 默认值。
     const provided = options.configProvider?.() ?? {}
     this.options = {
       defaultTimeoutSeconds: provided.defaultTimeoutSeconds ?? options.defaultTimeoutSeconds ?? 1800,
@@ -114,12 +118,15 @@ export class AutomationService {
 
   /** 启动调度循环（幂等）。 */
   start(): void {
+    if (this.disposed) return
     if (this.running) return
+    this.stopped = false
     this.running = true
+    this.recoverLegacyAndInterrupted()
     this.startedAt = new Date().toISOString()
     this.rebuildSchedule()
     // 恢复：把持久化里 pending 的 Run 重新入队（服务重启恢复）。
-    for (const run of this.store.listRuns({ status: 'pending', limit: 1000 })) {
+    for (const run of (this.store.unfinishedRuns?.() ?? this.store.listRuns({ status: 'pending', limit: 1000 })).filter(run => run.status === 'pending')) {
       this.queue.enqueue(run)
     }
     this.logger('[automation] 调度服务已启动。')
@@ -140,8 +147,6 @@ export class AutomationService {
       this.timer = undefined
     }
     // 清除重试定时器，但保留队列（下次 start 恢复）。
-    for (const timer of this.retryTimers.values()) clearTimeout(timer)
-    this.retryTimers.clear()
     this.logger('[automation] 调度服务已停止。')
   }
 
@@ -149,6 +154,7 @@ export class AutomationService {
   status(): ServiceStatus {
     return {
       running: this.running,
+      compatibility: this.deps.runtimeFacts?.(),
       queued: this.queue.size,
       active: this.runManager.size,
       tickMs: this.options.tickMs,
@@ -158,14 +164,44 @@ export class AutomationService {
   }
 
   /** 卸载：停止调度、终止运行中任务、关闭队列。 */
-  dispose(): void {
+  dispose(): Promise<void> {
+    this.disposed = true
     this.stopped = true
     this.stop()
     this.runManager.abortAll('服务卸载')
     this.queue.clear('服务卸载')
-    for (const timer of this.retryTimers.values()) clearTimeout(timer)
-    this.retryTimers.clear()
     this.runManager.dispose()
+    return Promise.allSettled([...this.jobs]).then(() => undefined)
+  }
+
+  async quiesce(): Promise<void> { this.quiescing = true; this.stop(); await Promise.allSettled([...this.jobs]) }
+  resume(): void { this.quiescing = false; this.start() }
+  get busy(): boolean { return this.runManager.size > 0 || this.jobs.size > 0 }
+  private recoverLegacyAndInterrupted(): void {
+    const oldTasks = this.store.listTasks().filter(task => !isDirectAction(task.action) && task.enabled)
+    const reviewTriggers = this.store.listTriggers().filter(trigger => trigger.enabled && !trigger.config.time_zone && legacyRuleIssue(trigger.config))
+    if ((oldTasks.length || reviewTriggers.length) && !this.store.getMeta?.('legacy-guard-backup')) {
+      const backup = this.store.backupNow?.(true)
+      if (!backup) throw Error('无法备份旧任务；拒绝修改旧状态。')
+      this.store.setMeta?.('legacy-guard-backup', { backup, createdAt: new Date().toISOString() })
+    }
+    for (const task of this.store.listTasks()) {
+      if (!isDirectAction(task.action) && task.enabled) this.store.updateTask(task.id, { enabled: false })
+    }
+    for (const run of (this.store.unfinishedRuns?.() ?? this.store.listRuns({ status: 'running', limit: 1000 })).filter(run => run.status === 'running')) {
+      this.store.updateRun(run.id, { status: 'failed', error: '宿主中断，执行结果未知；未自动重跑。', finished_at: new Date().toISOString() })
+    }
+    for (const run of (this.store.unfinishedRuns?.() ?? this.store.listRuns({ status: 'pending', limit: 1000 })).filter(run => run.status === 'pending')) {
+      const task = this.store.getTask(run.task_id)
+      if (!task || !isDirectAction(task.action)) this.store.updateRun(run.id, { status: 'cancelled', error: '旧模型任务已停用，请迁移到官方 Schedule。', finished_at: new Date().toISOString() })
+    }
+    for (const trigger of this.store.listTriggers()) {
+      const issue = !trigger.config.time_zone ? legacyRuleIssue(trigger.config) : undefined
+      if (issue && trigger.enabled) {
+        this.store.setMeta?.('review:' + trigger.id, { issue, originalEnabled: true })
+        this.store.updateTrigger(trigger.id, { enabled: false })
+      }
+    }
   }
 
   /* ---------------- 调度核心 ---------------- */
@@ -175,7 +211,7 @@ export class AutomationService {
     const now = Date.now()
     const entries: ScheduleEntry[] = []
     for (const task of this.store.listTasks()) {
-      if (!task.enabled) continue
+      if (!task.enabled || !isDirectAction(task.action)) continue
       for (const trigger of this.store.listTriggers(task.id)) {
         if (!trigger.enabled) continue
         let normalized
@@ -185,7 +221,16 @@ export class AutomationService {
           continue
         }
         const nextAt = nextOccurrence(normalized, now)
-        if (nextAt === undefined) continue
+        if (nextAt === undefined) {
+          if (trigger.config.type === 'once') {
+            const at = new Date(onceInstant(trigger.config)).toISOString()
+            if (!this.store.hasOccurrence?.(trigger.id, at)) {
+              const nowIso = new Date(now).toISOString()
+              this.store.createRun({ id: 'missed_' + trigger.id, task_id: task.id, trigger_id: trigger.id, scheduled_at: at, status: 'skipped', attempt: 1, error: '已错过执行时间；未自动补跑，可手动运行。', created_at: nowIso, updated_at: nowIso, finished_at: nowIso })
+            }
+          }
+          continue
+        }
         entries.push({ trigger, task, nextAt })
       }
     }
@@ -194,6 +239,8 @@ export class AutomationService {
 
   /** 一个调度 tick：触发到期项 + 消费队列。 */
   private async tick(): Promise<void> {
+    if (this.stopped || this.quiescing || !this.running) return
+    if (this.deps.canExecute && !this.deps.canExecute()) return
     const now = Date.now()
     // 1) Trigger Engine：触发到期 Trigger。
     for (const entry of [...this.schedule]) {
@@ -212,22 +259,32 @@ export class AutomationService {
       .filter(entry => Number.isFinite(entry.nextAt))
       .sort((a, b) => a.nextAt - b.nextAt)
 
-    // 2) 消费队列：串行执行（并发策略在入队/触发时已处理）。
-    while (this.queue.size > 0) {
-      const next = this.queue.peek()
-      if (next === undefined) break
-      if (Date.parse(next.run.scheduled_at) > now) break
-      this.queue.dequeue()
-      const task = this.store.getTask(next.run.task_id)
-      if (task === undefined) {
-        this.store.updateRun(next.run.id, { status: 'failed', error: '任务已删除。', finished_at: new Date().toISOString() })
+    // Dispatch synchronously, then let independent tasks run without blocking ticks.
+    if (this.stopped || this.quiescing) return
+    for (const run of this.queue.all()) {
+      if ((this.store.getMeta?.<number>('retry:' + run.id) ?? 0) > now) continue
+      if (Date.parse(run.scheduled_at) > now) continue
+      const task = this.store.getTask(run.task_id)
+      if (!task || !isDirectAction(task.action) || (!task.enabled && run.trigger_id !== 'manual')) {
+        this.queue.remove(run.id)
+        this.store.updateRun(run.id, { status: 'cancelled', error: '任务已暂停、删除或属于旧模型任务。', finished_at: new Date().toISOString() })
         continue
       }
-      if (!task.enabled) {
-        this.store.updateRun(next.run.id, { status: 'cancelled', error: '任务已暂停，本次运行取消。', finished_at: new Date().toISOString() })
-        continue
+      if (this.runManager.hasRunningForTask(task.id)) {
+        if (task.concurrency === 'queue') continue
+        if (task.concurrency !== 'parallel') {
+          this.queue.remove(run.id)
+          this.store.updateRun(run.id, { status: 'skipped', error: '上一实例仍在运行（策略 skip）。', finished_at: new Date().toISOString() })
+          continue
+        }
       }
-      await this.runQueued(next.run, task)
+      this.queue.remove(run.id)
+      this.store.setMeta?.('retry:' + run.id, null)
+      const job = this.runQueued(run, task).catch(error => {
+        this.store.updateRun(run.id, { status: 'failed', error: String(error), finished_at: new Date().toISOString() })
+        this.runManager.finish(run.id, 'failed')
+      }).finally(() => this.jobs.delete(job))
+      this.jobs.add(job)
     }
   }
 
@@ -235,7 +292,8 @@ export class AutomationService {
   private fireTrigger(entry: ScheduleEntry, now: number): TriggerResult {
     const task = entry.task
     const trigger = entry.trigger
-    const scheduledAt = new Date(now).toISOString()
+    const scheduledAt = new Date(entry.nextAt).toISOString()
+    if (this.store.hasOccurrence?.(entry.trigger.id, scheduledAt)) return { skipped: true, reason: '该计划时刻已记录。' }
     const run: Run = {
       id: `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       task_id: task.id,
@@ -302,6 +360,7 @@ export class AutomationService {
     if (canRetry) {
       const nextAttempt = run.attempt + 1
       const delayMs = (retry?.delay_seconds ?? 60) * 1000
+      this.store.setMeta?.('retry:' + run.id, Date.now() + delayMs)
       log(`[retry] 第 ${run.attempt} 次失败，${delayMs / 1000}s 后重试（第 ${nextAttempt} 次）。`)
       this.store.updateRun(run.id, {
         status: 'pending',
@@ -312,19 +371,7 @@ export class AutomationService {
       })
       this.runManager.finish(run.id, 'pending')
       const retried = this.store.getRun(run.id)
-      if (retried !== undefined) {
-        const timer = setTimeout(() => {
-          this.retryTimers.delete(run.id)
-          const taskNow = this.store.getTask(task.id)
-          if (taskNow !== undefined && taskNow.enabled) {
-            this.queue.enqueue(retried)
-          } else {
-            this.store.updateRun(run.id, { status: 'cancelled', error: '任务已删除或暂停，重试取消。', finished_at: new Date().toISOString() })
-          }
-        }, delayMs)
-        timer.unref?.()
-        this.retryTimers.set(run.id, timer)
-      }
+      if (retried !== undefined) this.queue.enqueue(retried)
       return
     }
 
@@ -436,11 +483,11 @@ export class AutomationService {
 
   /** 立即运行任务（创建手动 Run 入队）。 */
   runNow(taskId: AutomationId): AutomationResult {
+    if (this.deps.canExecute && !this.deps.canExecute()) return { ok: false, code: 'COMPATIBILITY', message: '官方组合不匹配，已禁止直接执行。' }
     const task = this.store.getTask(taskId)
     if (task === undefined) return { ok: false, code: 'TASK_NOT_FOUND', message: `任务不存在：${taskId}` }
-    if (!task.enabled) {
-      // 立即运行不要求任务启用。
-    }
+    if (!isDirectAction(task.action)) return officialTaskError()
+    if (this.quiescing || this.stopped) return { ok: false, code: 'SERVICE_STOPPED', message: '服务已停止或正在迁移。' }
     const run: Run = {
       id: `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       task_id: task.id,
@@ -458,6 +505,7 @@ export class AutomationService {
 
   /** 取消 Run：运行中 → 中止；队列中 → cancelled；已完成 → 无操作。 */
   cancelRun(runId: AutomationId): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '迁移或重载期间不能修改运行。' }
     const run = this.store.getRun(runId)
     if (run === undefined) return { ok: false, code: 'RUN_NOT_FOUND', message: `运行不存在：${runId}` }
     if (run.status === 'running') {
@@ -465,6 +513,7 @@ export class AutomationService {
       return { ok: true, code: 'OK', message: `已请求取消运行 ${runId}。` }
     }
     if (run.status === 'pending') {
+      this.store.setMeta?.('retry:' + runId, null)
       this.queue.cancel(runId, '用户取消')
       this.store.updateRun(runId, { status: 'cancelled', error: '用户取消。', finished_at: new Date().toISOString() })
       return { ok: true, code: 'OK', message: `已取消排队中的运行 ${runId}。` }
@@ -474,13 +523,27 @@ export class AutomationService {
 
   /* ---------------- 任务 / Trigger CRUD（工具与 Web 共用） ---------------- */
 
-  createTask(input: CreateTaskInput): AutomationResult {
-    const task = this.store.createTask(input)
+  createTask(input: CreateTaskInput, triggerConfigs: TriggerConfig[] = []): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
+    if (!isDirectAction(input.action)) return officialTaskError()
+    const invalid = validateTaskInput(input)
+    if (invalid) return { ok: false, code: 'INVALID_INPUT', message: invalid }
+    let task: Task
+    try {
+      const configs = triggerConfigs.map(config => { const next = { ...config, time_zone: config.time_zone ?? systemTimeZone() }; normalizeTrigger(next); return next })
+      const create = () => { const created = this.store.createTask(input); for (const config of configs) this.store.addTrigger(created.id, { config, enabled: true }); return created }
+      task = this.store.transaction ? this.store.transaction(create) : create()
+    } catch (error) { return { ok: false, code: 'INVALID_TRIGGER', message: String(error instanceof Error ? error.message : error) } }
     this.rebuildSchedule()
     return { ok: true, code: 'OK', message: `已创建任务“${task.name}”。`, task }
   }
 
   updateTask(id: AutomationId, patch: Partial<CreateTaskInput>): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
+    const existing = this.store.getTask(id)
+    if (existing && !isDirectAction(existing.action)) return officialTaskError()
+    if (patch.action && !isDirectAction(patch.action)) return officialTaskError()
+    if (existing) { const invalid = validateTaskInput({ ...existing, ...patch }); if (invalid) return { ok: false, code: 'INVALID_INPUT', message: invalid } }
     const task = this.store.updateTask(id, patch)
     if (task === undefined) return { ok: false, code: 'TASK_NOT_FOUND', message: `任务不存在：${id}` }
     this.rebuildSchedule()
@@ -488,6 +551,9 @@ export class AutomationService {
   }
 
   deleteTask(id: AutomationId): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
+    if (this.runManager.hasRunningForTask(id)) return { ok: false, code: 'TASK_BUSY', message: '请先取消或等待正在运行的任务。' }
+    for (const run of this.queue.all()) if (run.task_id === id) this.cancelRun(run.id)
     if (this.store.deleteTask(id)) {
       this.rebuildSchedule()
       return { ok: true, code: 'OK', message: '任务已删除。' }
@@ -496,6 +562,9 @@ export class AutomationService {
   }
 
   enableTask(id: AutomationId, enabled: boolean): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
+    const existing = this.store.getTask(id)
+    if (enabled && existing && !isDirectAction(existing.action)) return officialTaskError()
     const task = this.store.updateTask(id, { enabled })
     if (task === undefined) return { ok: false, code: 'TASK_NOT_FOUND', message: `任务不存在：${id}` }
     this.rebuildSchedule()
@@ -503,7 +572,9 @@ export class AutomationService {
   }
 
   addTrigger(taskId: AutomationId, input: TriggerInput): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
     try {
+      input = { ...input, config: { ...input.config, time_zone: input.config.time_zone ?? systemTimeZone() } }
       normalizeTrigger(input.config)
     } catch (err) {
       return { ok: false, code: 'INVALID_TRIGGER', message: err instanceof Error ? err.message : String(err) }
@@ -515,20 +586,24 @@ export class AutomationService {
   }
 
   updateTrigger(id: AutomationId, patch: Partial<TriggerInput>): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
     if (patch.config !== undefined) {
       try {
-        normalizeTrigger(patch.config)
+        patch = { ...patch, config: { ...patch.config, time_zone: patch.config.time_zone ?? systemTimeZone() } as TriggerConfig }
+        normalizeTrigger(patch.config!)
       } catch (err) {
         return { ok: false, code: 'INVALID_TRIGGER', message: err instanceof Error ? err.message : String(err) }
       }
     }
     const trigger = this.store.updateTrigger(id, patch)
+    if (trigger && patch.config) this.store.setMeta?.('review:' + id, null)
     if (trigger === undefined) return { ok: false, code: 'TRIGGER_NOT_FOUND', message: `执行时间不存在：${id}` }
     this.rebuildSchedule()
     return { ok: true, code: 'OK', message: '执行时间已更新。', trigger }
   }
 
   deleteTrigger(id: AutomationId): AutomationResult {
+    if (this.quiescing) return { ok: false, code: 'SERVICE_BUSY', message: '正在迁移或重载，请稍后重试。' }
     if (this.store.deleteTrigger(id)) {
       this.rebuildSchedule()
       return { ok: true, code: 'OK', message: '执行时间已删除。' }
@@ -549,3 +624,20 @@ export class AutomationService {
 /** 便捷：Trigger 标签导出（工具/Web 用）。 */
 export { triggerLabel }
 export type { TriggerConfig }
+
+export function isDirectAction(action: Task['action']): boolean { return action?.type === 'command' || action?.type === 'script' }
+function officialTaskError(): AutomationResult { return { ok: false, code: 'USE_OFFICIAL_SCHEDULE', message: '会话/Skill任务请在原会话使用官方 schedule_create；旧任务请从迁移入口选择目标会话。' } }
+function validateTaskInput(input: CreateTaskInput): string | undefined {
+  if (input.action.type !== 'command' && input.action.type !== 'script') return '请使用官方会话任务。'
+  if (!input.name?.trim()) return '请填写任务名称。'
+  if (typeof input.enabled !== 'boolean') return '启用状态须为布尔值。'
+  if (input.context?.cwd !== undefined && typeof input.context.cwd !== 'string') return '工作目录须为文本。'
+  if (input.context?.env && (Array.isArray(input.context.env) || typeof input.context.env !== 'object' || Object.entries(input.context.env).some(([key,value]) => !key || key.includes('=') || typeof value !== 'string'))) return '环境变量须为名称与文本值的映射。'
+  if (input.action.type === 'command' && !input.action.command?.trim()) return '请填写命令。'
+  if (input.action.type === 'script' && !input.action.path?.trim()) return '请填写脚本路径。'
+  if (input.action.args && (!Array.isArray(input.action.args) || input.action.args.some(value => typeof value !== 'string'))) return '参数必须是字符串列表。'
+  if (input.timeout_seconds !== undefined && (!Number.isSafeInteger(input.timeout_seconds) || input.timeout_seconds < 0)) return '超时须为非负整数秒；0表示不限。'
+  if (input.concurrency && !['skip','queue','parallel'].includes(input.concurrency)) return '非法重叠策略。'
+  if (input.retry && (!Number.isSafeInteger(input.retry.max_attempts) || input.retry.max_attempts < 0 || !Number.isSafeInteger(input.retry.delay_seconds) || input.retry.delay_seconds < 0)) return '重试次数和间隔须为非负整数。'
+  return undefined
+}

@@ -159,7 +159,7 @@ export interface CronTriggerConfig {
 }
 
 /** 全部 Trigger 配置判别联合。 */
-export type TriggerConfig = OnceTriggerConfig | HourlyTriggerConfig | DailyTriggerConfig | WeekdayTriggerConfig | WeeklyTriggerConfig | MonthlyTriggerConfig | CronTriggerConfig
+export type TriggerConfig = (OnceTriggerConfig | HourlyTriggerConfig | DailyTriggerConfig | WeekdayTriggerConfig | WeeklyTriggerConfig | MonthlyTriggerConfig | CronTriggerConfig) & { time_zone?: string }
 
 /** 触发规则：什么时候运行。 */
 export interface Trigger {
@@ -266,4 +266,11 @@ export interface AutomationStore {
   updateRun(id: string, patch: Partial<Run>): Run | undefined
   appendRunLog(runId: string, line: string): void
   readRunLog(runId: string): string[]
+  hasOccurrence?(triggerId: string, scheduledAt: string): boolean
+  unfinishedRuns?(): Run[]
+  getMeta?<T = unknown>(key: string): T | undefined
+  setMeta?(key: string, value: unknown): void
+  transaction?<T>(operation: () => T): T
+  backupNow?(force?: boolean): string | undefined
+  restoreSnapshot?(file: string): void
 }

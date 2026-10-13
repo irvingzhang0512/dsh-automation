@@ -1,94 +1,40 @@
 # dsh-automation
 
-当前功能与验收以 [docs/SPEC.md](docs/SPEC.md) 为入口；原始需求保留为历史来源，技术契约见规格内的文档索引。功能任务先改规格与相关技术契约，用户明确确认该版文档后再开发；已确认同一版不重复询问。Bug 按已有且不变的预期查源码修复。
+基于官方 Schedule Bundle 的直接执行增强，当前版本 **0.2.0-rc.2+automation.1**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [实施契约](docs/IMPLEMENTATION-20261014.md)，验证见 [本版验收](docs/VERIFICATION-0.2.0-rc.2+automation.1.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
 
+## 使用
 
-DSH（DeepSeek Harness）定时任务插件：统一管理“按时间自动执行”的任务。
+会话中的提示词／Skill任务使用官方自动化工具和官方任务页面，在原会话投递。命令／脚本从「插件管理 → 官方 → 自动化任务 → 详情／配置 → 直接执行任务」进入；不新增侧栏入口。
 
-> 只读历史需求来源见 [dsh-automation-requirements.md](./dsh-automation-requirements.md)。
+直接执行支持 .py、.sh、.ps1、.js、.mjs、命令参数、解释器、工作目录和环境变量；不创建Session、不调用模型。参数每行一个，保留空格；环境变量每行NAME=值。解释器需已安装并可用，可指定完整路径。Windows的.sh脚本优先使用可找到的Git Bash；PowerShell默认pwsh。
 
-## 快速开始
+支持一次、每小时、每日、指定星期、每周、每月、Cron与多触发器。每个触发器保存IANA时区；每月不足日期截断至月末。重叠可跳过、排队或并行；支持超时、失败重试、立即运行、取消本次、历史、输出和退出码。取消一次不影响后续计划。
 
-安装后，在 DSH Web 左侧「新会话」下方会出现 **「定时任务」** 入口。创建第一个定时任务有两种方式：
+宿主关闭时不调度；重启不补跑错过的周期，一次性过期标记已错过。尚未开始的持久队列恢复；中断运行标记结果未知且不自动重跑。
 
-**① 表单创建**：进入「定时任务」页面 → 「任务」Tab → 点右上「+ 新建任务」→ 填名称、执行动作（Skill / Agent / 命令 / 脚本）、执行时间（如每天 09:00）→ 保存。
+## 配置与迁移
 
-**② 自然语言创建**：直接对助手说，例如——
+同页「官方配置」「Automation 配置」两分区分别保存；官方内部时间感知与任务调度也是两个独立保存所有者。字段说明、默认、范围和生效时间见 [配置映射](docs/CONFIG-UI.md)。恢复继承只改草稿，保存才删除用户覆盖；冲突与失败保留草稿。运行中拒绝会重载直接服务的保存；更换数据目录不搬迁或覆盖旧数据。
 
-> 每天晚上 8 点运行项目日报 Skill。
-> 每周五下午五点生成周报。
+数据默认位于DSH数据目录下automation/，使用SQLite。迁移先预览、选择原会话／核对规则，再应用；强制备份数据库和配置。直接任务保留ID与历史；旧模型任务停用旧路径，迁移为官方提醒。不可等价Cron或月末模型规则列为待处理；后续写入、已投递提醒等恢复冲突拒绝覆盖。
 
-助手会自动调用 `automation.create_task` 等工具帮你创建。
+16个automation.*工具及/api/automation保留，只管理直接任务与旧记录；新建模型任务明确引导官方工具。见 [工具](docs/tools.md)与 [Skill](skills/automation/SKILL.md)。
 
-任务创建后，可在「待运行」Tab 查看下一次执行时间、「运行中」查看实时执行、「历史」查看结果与日志。
+## 安装与版本
 
-**数据存在哪**：`~/.dsh/data/automation/`（SQLite + 日志 + 备份，见下「数据目录」）。
-**配置在哪改**：DSH 设置页 → 「定时任务」设置卡（见下「配置」）。
+本版精确要求Desktop、官方Schedule Bundle及三个成员均为0.2.0-rc.2；实际挂载来源不匹配时拒绝执行和迁移。自研修订比较automation.N，不能用忽略build metadata的通用SemVer判断升级。
 
-## 功能
-
-- **任务生命周期**：创建 / 查看 / 修改 / 删除 / 启用 / 暂停 / 立即运行定时任务；
-- **多 Trigger**：一个 Task 可挂多个触发规则（Once / Hourly / Daily / Weekday / Weekly / Monthly / Cron），
-  可单独增删其中一个 Trigger；
-- **四类 Action**：Skill、Agent Prompt、Command、Script；
-- **运行控制**：待运行（Upcoming）、运行中（Running）、历史（History）三个视图，
-  支持取消某一次 Run、失败重试、超时；
-- **并发策略**：skip（默认）/ queue / parallel；
-- **后台调度**：Trigger Engine + Task Queue + Worker + Run Manager + Retry Manager，
-  由宿主服务承载，关闭浏览器不会停止调度；停止或重启宿主会停止服务，持久化历史不代表原运行进程继续；
-- **SQLite 持久化**：Node 内置 `node:sqlite`，数据目录遵循 DSH 统一规范 `~/.dsh/data/automation/`；
-- **配置项**：数据目录、默认超时、调度轮询间隔、备份保留份数，可在 DSH 设置页修改；按现行契约，服务／存储在初始化时读取参数，设置保存后重新挂载生效，见 [SPEC F010](docs/SPEC.md#f010-配置生效边界)；
-- **16 个 automation 工具**：供 LLM / Skill 通过工具统一管理任务；
-- **automation Skill**：教 LLM 解析自然语言请求并调用工具；
-- **Web 主页面**：左上“定时任务”入口（与“新会话”“日程”同款卡片样式）+ `/automation` 页面（任务 / 待运行 / 运行中 / 历史 四 Tab + 新建任务 Drawer + 任务详情）。
-
-## 安装
-
-```bash
-dsh plugin --profile <name> add dsh-automation@<version>
-```
+Git安装固定完整提交或发布tag，提交携带lib/构建产物。仓库为 https://github.com/irvingzhang0512/dsh-automation ，本版尚未公开推送／发布tag；当前公开地址不能当作已可安装的本版。隔离本地固定Git安装验收与公开渠道验证分开记录。
 
 ## 开发
 
-```bash
+从维护仓库根目录进入，遵循根及本仓库AGENTS。
+
+```sh
 npm install
 npm run typecheck
 npm test
 npm run build
 ```
 
-## 数据目录
-
-遵循 DSH 统一数据目录规范（需求 §23）：`$DSH_DATA_DIR` → `~/.dsh/data/automation/`（`$DSH_HOME` 可覆盖）。
-第一版使用的 `~/.dsh/automation/` 会在首次启动时自动迁移到新路径（旧目录保留，不自动删除）。
-
-```
-~/.dsh/data/automation/
-│
-├── automation.db   # SQLite（tasks / triggers / runs / run_logs；WAL 模式）
-├── logs/           # 运行日志（run_xxx.log）
-├── backup/         # SQLite 备份（automation.<时间戳>.db，保留 keepBackups 份）
-└── runtime/        # 运行期文件
-```
-
-## 配置
-
-配置项在 DSH 设置页「定时任务」设置卡中修改（保存到当前 DSH 环境的设置；生效边界见下表与 SPEC F008）：
-
-| 字段 | 说明 | 默认 |
-|---|---|---|
-| `dataDir` | 数据目录覆盖；留空按 DSH 规范自动解析，修改需重新挂载 | 空 |
-| `defaultTimeoutSeconds` | 任务未单独配置超时时的默认值；服务初始化时读取，修改需重新挂载 | 1800 |
-| `tickMs` | 调度轮询间隔（毫秒）；修改后需重启 DSH 生效 | 1000 |
-| `keepBackups` | SQLite 备份保留份数（0 关闭备份）；存储实例重新挂载后生效 | 10 |
-
-## 文档
-
-- [需求规格说明书](./dsh-automation-requirements.md)
-- [架构与设计](docs/architecture.md)
-- [工具清单](docs/tools.md)
-- [Skill 说明](docs/skill.md)
-
-## License
-
-MIT
+lib/提交，node_modules/不提交；客户端从宿主模块表加载React与原生控件。先构建再运行客户端产物冒烟；真实格式测试需Python、Bash、PowerShell、Node。开发仅使用隔离Desktop，不自动替换日常或恢复Web。

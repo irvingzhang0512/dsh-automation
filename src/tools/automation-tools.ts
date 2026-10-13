@@ -79,10 +79,12 @@ const actionSchema: ParameterPropertySpec = {
     command: { type: 'string', description: 'command 类型必填：要运行的命令。' },
     args: { type: 'array', items: { type: 'string' }, description: 'command / script 的附加参数。' },
     shell: { type: 'boolean', description: 'command 是否通过 shell 执行（默认 false）。' },
-    path: { type: 'string', description: 'script 类型必填：脚本路径（.py / .sh）。' },
+    path: { type: 'string', description: 'script 类型必填：脚本路径（.py/.sh/.ps1/.js/.mjs）。' },
     interpreter: { type: 'string', description: 'script 解释器覆盖（如 python / bash）。' },
   },
 }
+
+const directActionSchema: ParameterPropertySpec = { ...actionSchema, description: '无Session直接执行命令或脚本；Skill/会话任务使用官方schedule_create。', properties: { ...actionSchema.properties, type: { type: 'string', enum: ['command','script'], required: true, description: '直接动作类型。' } } }
 
 const retrySchema: ParameterPropertySpec = {
   type: 'object',
@@ -204,7 +206,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
     parameters: {
       name: { type: 'string', required: true, description: '任务名称（如 "每日项目总结"）。' },
       description: { type: 'string', description: '任务描述。' },
-      action: actionSchema,
+      action: directActionSchema,
       context: {
         type: 'object',
         additionalProperties: false,
@@ -246,7 +248,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
       task_id: { type: 'string', required: true, description: '要更新的任务 id。' },
       name: { type: 'string', description: '新名称。' },
       description: { type: 'string', description: '新描述。' },
-      action: actionSchema,
+      action: directActionSchema,
       context: {
         type: 'object',
         additionalProperties: false,
@@ -363,6 +365,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
     description: '给一个任务添加执行时间（Trigger）。一个任务可以有多个执行时间；可单独删除其中某一个。',
     parameters: {
       task_id: { type: 'string', required: true, description: '任务 id。' },
+      time_zone: { type: 'string', description: '明确IANA执行时区，如Asia/Shanghai。' },
       type: triggerTypeEnum,
       at: timeString,
       minute: { type: 'integer', description: 'hourly 类型：每小时的第几分钟（0-59，默认 0）。' },
@@ -390,6 +393,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
     description: '更新一个执行时间（Trigger）的配置或启用状态。',
     parameters: {
       trigger_id: { type: 'string', required: true, description: 'Trigger id。' },
+      time_zone: { type: 'string', description: '明确IANA执行时区，如Asia/Shanghai。' },
       type: triggerTypeEnum,
       at: timeString,
       minute: { type: 'integer', description: 'hourly 类型：每小时的第几分钟。' },
@@ -540,23 +544,24 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
 /** 从工具参数构造 TriggerConfig（至少需要 type；其余按类型取）。 */
 function buildTriggerConfig(args: Record<string, unknown>): Record<string, unknown> | undefined {
+  const zone = typeof args.time_zone === 'string' ? { time_zone: args.time_zone } : {}
   const type = args.type
   if (typeof type !== 'string') return undefined
   switch (type) {
     case 'once':
-      return { type, at: requireString(args, 'at') }
+      return { ...zone, type, at: requireString(args, 'at') }
     case 'hourly':
-      return { type, ...(typeof args.minute === 'number' ? { minute: args.minute } : {}) }
+      return { ...zone, type, ...(typeof args.minute === 'number' ? { minute: args.minute } : {}) }
     case 'daily':
-      return { type, time: requireString(args, 'time') }
+      return { ...zone, type, time: requireString(args, 'time') }
     case 'weekday':
-      return { type, weekdays: requireNumberArray(args, 'weekdays'), time: requireString(args, 'time') }
+      return { ...zone, type, weekdays: requireNumberArray(args, 'weekdays'), time: requireString(args, 'time') }
     case 'weekly':
-      return { type, weekday: requireNumber(args, 'weekday'), time: requireString(args, 'time') }
+      return { ...zone, type, weekday: requireNumber(args, 'weekday'), time: requireString(args, 'time') }
     case 'monthly':
-      return { type, day: requireNumber(args, 'day'), time: requireString(args, 'time') }
+      return { ...zone, type, day: requireNumber(args, 'day'), time: requireString(args, 'time') }
     case 'cron':
-      return { type, expr: requireString(args, 'expr') }
+      return { ...zone, type, expr: requireString(args, 'expr') }
     default:
       throw new Error(`不支持的触发类型：${type}。`)
   }

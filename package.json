@@ -1,7 +1,7 @@
 {
   "name": "dsh-automation",
-  "version": "0.2.2",
-  "description": "DSH 定时任务插件：统一管理“按时间自动执行”的任务。覆盖任务创建/查看/修改/删除/启停、多 Trigger（Once/Hourly/Daily/Weekday/Weekly/Monthly/Cron）、后台调度服务（Trigger Engine / Task Queue / Worker / Run Manager / Retry / 超时 / 并发策略）、SQLite 持久化、四类 Action（Skill / Agent Prompt / Command / Script）、16 个 automation_* 工具、automation skill 与 Web 主页面（任务/待运行/运行中/历史四 Tab）。",
+  "version": "0.2.0-rc.2+automation.1",
+  "description": "基于官方 Schedule Bundle 的自动化增强：无Session命令/脚本执行、运行控制、双分区配置与迁移",
   "type": "module",
   "repository": {
     "type": "git",
@@ -45,7 +45,9 @@
     },
     "client": {
       "platform": "web",
-      "inject": []
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
     }
   },
   "scripts": {
@@ -69,37 +71,76 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "ws": "^8.18.0"
+    "@js-temporal/polyfill": "0.5.1"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=4.0.2 <5.0.0",
-    "@deepseek-ai/dsh-skill": ">=0.1.2-rc.1 <0.2.0",
-    "@deepseek-ai/dsh-tools": ">=0.1.2-rc.1 <0.2.0",
-    "@deepseek-ai/schemastery": ">=3.18.2 <4.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-skill": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "3.18.4",
+    "@deepseek-ai/dsh": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-experimental-schedule-bundle": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-schedule": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-time-context": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-schedule": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-config-editor": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-app-boot": "0.2.0-rc.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-skill": {
       "optional": true
     },
-    "react": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-experimental-schedule-bundle": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-schedule": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-time-context": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-schedule": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-config-editor": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-api-session-controller": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-connection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-app-boot": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.2",
-    "@deepseek-ai/dsh-skill": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
-    "@deepseek-ai/schemastery": "^3.18.2",
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-skill": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "~3.18.4",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
-    "@types/ws": "^8.5.10",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.2",
     "typescript": "^5.8.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "@deepseek-ai/dsh-schedule": "0.2.0-rc.2",
+    "@js-temporal/polyfill": "0.5.1"
   }
 }

@@ -1,6 +1,6 @@
 # dsh-automation 工具清单
 
-16 个 `automation.*` 工具，供 LLM / Skill 通过工具统一管理定时任务。
+16 个 `automation.*` 工具，供 LLM / Skill 通过工具统一管理直接定时任务。
 所有工具返回统一信封 `{ ok, code, message, ... }`；失败返回结构化错误码而非抛错。
 
 ## 工具总览
@@ -30,7 +30,7 @@
 创建任务。参数：
 - `name`（必填）：任务名称，如「每日项目日报」。
 - `description`：任务描述。
-- `action`（必填）：执行动作，四种类型见下。
+- `action`（必填）：执行动作，command／script两种类型见下。新建模型任务改用官方Schedule工具。
 - `context`：执行上下文（`cwd` / `env`）。
 - `concurrency`：`skip`（默认）/ `queue` / `parallel`。
 - `retry`：`{ enabled, max_attempts, delay_seconds }`。
@@ -59,7 +59,7 @@
 | `monthly` | `day`（1-31）、`time` |
 | `cron` | `expr`（5 字段，如 `0 18 * * *`） |
 
-一个任务可添加多个执行时间，可单独删除其中一个。
+所有类型可带time_zone（IANA时区）；缺值新建时固定宿主系统时区。每月日期不足截断至月末。一个任务可添加多个执行时间，可单独删除其中一个。
 
 ### automation.update_trigger / delete_trigger
 - `update_trigger`：`trigger_id` 必填；可改 `enabled` 或触发配置（type + 对应参数）。
@@ -78,25 +78,23 @@
 - `list_history`：可选 `task_id` / `status`（pending/running/success/failed/cancelled/skipped/timeout）/ `limit`（默认 100）。
 - `get_run`：`run_id` 必填；输出含 `run` 与 `logs`（执行日志行）。
 
-## Action 四种类型
+## Action 两种直接类型
 
 ```jsonc
-// skill：运行一个 DSH Skill
-{ "type": "skill", "skill": "project-daily-report", "prompt": "可选附加指令" }
-
-// agent_prompt：给指定 Agent 发 Prompt
-{ "type": "agent_prompt", "agent": "agent-name", "prompt": "..." }
-
-// command：运行命令（默认无 shell，按空白分词；shell:true 走 shell）
-{ "type": "command", "command": "git pull", "args": ["..."], "shell": false }
-
-// script：执行本地脚本（仅 .py / .sh）
-{ "type": "script", "path": "scripts/daily.py", "args": ["--verbose"], "interpreter": "python" }
+{ "type": "command", "command": "git", "args": ["status", "--short"], "shell": false }
+{ "type": "script", "path": "scripts/daily.py", "args": ["argument with spaces"], "interpreter": "python" }
 ```
+
+script支持.py/.sh/.ps1/.js/.mjs。旧skill/agent_prompt只保留读取与迁移；创建／切换／启用／运行返回USE_OFFICIAL_SCHEDULE，不创建Session。
+
+## 配置与迁移接口
+
+GET/POST /api/automation/settings、/api/automation/migration契约见 [实施契约](IMPLEMENTATION-20261014.md)。配置按所有者保存而非跨区原子操作；迁移必须持有当前预览令牌。原生页面复用同源围栏。
 
 ## 错误码
 
 - `TASK_NOT_FOUND` / `TRIGGER_NOT_FOUND` / `RUN_NOT_FOUND`
 - `INVALID_TRIGGER` / `INVALID_INPUT`
-- `NOT_CANCELLABLE`
+- `NOT_CANCELLABLE` / `USE_OFFICIAL_SCHEDULE` / `TASK_BUSY` / `SERVICE_BUSY`
+- 配置与迁移：非法所有者／字段、冲突／恢复冲突返回对应结构化code；冲突保留草稿
 - 信封 `code` 供 LLM 判断与用户说明。

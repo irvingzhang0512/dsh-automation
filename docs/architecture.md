@@ -1,147 +1,35 @@
-# dsh-automation 架构与设计
+# dsh-automation 当前技术契约
 
-目标版技术契约：见 [DSH 0.2.0-rc.2 升级适配](DSH-UPGRADE-20261011.md)（`dsh-upgrade-20261011-v1`，待确认／待实现）。本文原宿主 API 和设置存储说明保留作为当前组合基线；目标版采用该补充中的接口、配置迁移与验收边界，不将旧 API 继续当作目标版可用接口。
+批准版 official-automation-20261014-v1，当前实现0.2.0-rc.2+automation.1。行为与验收以 [实施契约](IMPLEMENTATION-20261014.md)及 [规格](SPEC.md)为准。历史升级提案见 [旧升级文档](DSH-UPGRADE-20261011.md)，不作为本版目标。
 
-> 定时任务插件（用户入口名「定时任务」，内部标识 `dsh-automation` / `automation`）。
-> 本文档与当前实现逐字一致；若与代码有出入，以代码为准并修正本文档。
+## 归属与入口
 
-## 1. 定位与原则
+官方Schedule拥有会话提醒、原会话投递与投递记录。automation不调用模型、不创建Session。官方详情plugins.detail.section承载双分区设置；main槽注册automation面板，详情按钮通过layout.selectPanel打开，不注册侧栏。
 
-- **Scheduler 只负责调度，不实现业务**：具体业务（Skill / Agent / Command / Script）由 DSH 已有能力完成。
-- **与 `dsh web` 生命周期解耦**：调度服务由宿主进程承载，Web 重启不影响后台调度、运行中任务与历史。
-- **LLM / Skill 不得直改存储**：所有任务操作统一经 16 个 `automation.*` 工具。
+客户端／16工具 → AutomationService → 队列／Worker → ChildProcessExecutor → SQLite。设置桥与迁移桥复用/api/automation路径聚合及同源围栏；原生dsh-app://app仅在回环传输上允许，宿主认证仍独立负责身份。
 
-## 2. 整体分层
+## 官方依赖
 
-```
-client（浏览器 UI）──/api/automation REST──┐
-Agent 工具（tools/automation-tools.ts）────┤→ AutomationService（core/）→ AutomationStore（storage/）→ SQLite
-automation skill（NL→工具映射，不碰文件）──┘
-```
+实际profile Bundle列表、configEditor.configuration条目、Loader父tree baseUrl、pluginPackages与installAnchor共同检查来源。目标Bundle、dsh-schedule、dsh-time-context、dsh-client-ui-schedule和Desktop必须精确0.2.0-rc.2。
 
-- 所有入口（UI / 工具 / skill）共用同一个 `AutomationService` 业务层。
-- `src/shared/`（领域类型 + 纯时间函数）零运行时依赖、只含 JSON 可序列化结构。
+shared/time.ts使用公开createAtSchedule、createDailySchedule、createWeeklySchedule、createCronSchedule；monthly直接规则用Temporal按时区截断月末后交绝对时间助手。旧解析器仅用于历史规则诊断，不作为新调度算法。官方Cron与旧日期／星期AND语义不可直接互换。
 
-## 3. 目录结构
+## 配置
 
-```
-src/
-  index.ts          宿主入口：settings 接入、服务启动、工具/API/WS/skill 挂载
-  context-types.ts  宿主 Context 类型（vendored 结构镜像）
-  host/
-    config.ts       schemastery 配置 schema（dataDir/defaultTimeoutSeconds/tickMs/keepBackups）
-    skill-registration.ts  SKILL.md frontmatter 解析与打包注册
-  shared/           Task/Trigger/Run 类型、时间计算、AutomationStore 接口
-  core/
-    service.ts      AutomationService（调度 tick、并发、重试、运行控制、CRUD）
-    queue.ts        TaskQueue（pending 队列，按 scheduled_at 排序）
-    worker.ts       AutomationWorker（执行器抽象）
-    run-manager.ts  RunManager（运行中超时/取消）
-  storage/
-    sqlite.ts       SqliteAutomationStore（node:sqlite + 迁移 + 备份）
-  actions/
-    process.ts      Command / Script 执行器（child_process）
-    agent.ts        Skill / Agent Prompt 执行器（dsh-agent runtime）
-  tools/
-    automation-tools.ts  16 个 automation.* 工具
-  server/
-    api.ts          /api/automation REST 路由
-  client/
-    index.ts        客户端入口（slots 注册、SVG 图标）
-    AutomationPage.tsx  主面板（四 Tab + Drawer + 详情）
-    style.ts        注入样式（DSH 主题变量 + 侧栏卡片化覆盖）
-    api.ts          浏览器 fetch 客户端
-skills/automation/SKILL.md   自动化中文 Skill
-```
+八字段见 [字段表](CONFIG-UI.md)。只接受三个固定所有者和字段白名单。configEditor锁内校验entryId、配置指纹、实际条目和schema；保留未知字段与未编辑表达式，unset删除覆盖。普通参数按原生重载流程生效；schedule重载会影响依赖它的automation，因此也拒绝直接运行期间保存。时间感知保存不阻止直接运行。每个所有者草稿、令牌、错误独立；收到其他区快照不覆盖未保存草稿。
 
-## 4. 核心对象模型（需求 §4）
+## 生命周期和执行
 
-- **Task（任务）**：要做什么（名称、Action、并发策略、重试、超时）。
-- **Trigger（执行时间）**：什么时候运行；一个 Task 可挂多个 Trigger，可单独增删。
-  类型：`once` / `hourly` / `daily` / `weekday` / `weekly` / `monthly` / `cron`（5 字段）。
-- **Run（运行）**：一次实际执行；状态机 `pending → running → success / failed / cancelled / timeout`（另有 `skipped`）。
-  取消一次 Run ≠ 删除 Task。
+启动恢复pending，运行中标结果未知；周期从当前时间计算未来下一次，过期once只记一次skipped。trigger_id+scheduled_at防重复入队。queue按任务串行，parallel实际并行，skip记跳过。重试到期时间持久化；取消删除重试等待。服务暂停／卸载等待所属执行退出再关闭数据库。Windows取消所属PID进程树，POSIX取消所属进程组。
 
-## 5. 调度与执行（需求 §17/§19/§20/§21）
+脚本格式白名单固定五种，解释器覆盖不绕过格式限制；参数数组传入spawn，cwd/env在宿主执行。命令默认不经Shell；显式shell:true按系统Shell解释命令和参数。stdout/stderr各限制200000字符；运行日志、输出、错误、退出码保持可查。
 
-- **tick**：每 `tickMs`（默认 1000ms）触发到期 Trigger 创建 Run 入队，再串行消费队列。
-- **并发策略**：`skip`（默认，同任务运行中则本次 skipped）/ `queue`（排队）/ `parallel`（并行）。
-- **超时**：任务 `timeout_seconds` 或系统默认（`defaultTimeoutSeconds`，默认 1800s）。
-- **失败重试**：任务 `retry` 配置（`enabled` / `max_attempts` / `delay_seconds`），延迟后重新入队。
-- **执行器**：`command`/`script` 内置 child_process；`skill`/`agent_prompt` 依赖宿主 dsh-agent runtime（缺失时报结构化错误，不影响其他类型）。
+## 持久层与迁移
 
-## 6. 持久化（需求 §22/§23）
+保留tasks、triggers、runs、run_logs，追加automation_meta保存重试到期、规则审查、迁移记录与官方映射。默认目录沿用DSH_DATA_DIR／DSH_HOME；改变dataDir不搬数据。SQLite VACUUM INTO生成一致性备份，迁移强制备份即使keepBackups=0。
 
-- **存储**：`node:sqlite`（`DatabaseSync`，Node ≥22.5），WAL 模式 + `synchronous=NORMAL`。
-- **数据目录**（遵循 DSH 统一规范）：
+首次启动备份后暂停旧模型／不等价规则，不创建官方任务。迁移带完整业务指纹与配置指纹：预览→锁／暂停调度→备份→官方每触发器创建→保存映射→恢复调度。失败补偿；残留或中断记录标恢复待处理，避免自动重复投递。恢复检查全部历史（不限1000条）、配置及官方记录未被编辑／投递，冲突拒绝。配置本身迁移不更改所有者、不复制官方字段；恢复前验证配置指纹，原配置备份用于故障排查。
 
-  ```
-  $DSH_DATA_DIR/automation/    （环境变量优先）
-  $DSH_HOME/data/automation/   （默认 ~/.dsh/data/automation/）
-  ```
+## 来源
 
-  ```
-  automation.db     # tasks / triggers / runs / run_logs
-  logs/             # 运行日志（run_xxx.log 文本副本）
-  backup/           # SQLite 备份（automation.<ts>.db，保留 keepBackups 份）
-  ```
-
-- **旧路径迁移**：第一版用 `~/.dsh/automation/`；首次启动检测旧路径存在则一次性复制到新路径（幂等，不删除旧目录）。
-- **备份**：启动时 + `backupNow()` 一致性备份（`wal_checkpoint(TRUNCATE)` 后复制），`keepBackups` 份轮转（默认 10，0 关闭）。
-
-## 7. 配置（需求 §配置）
-
-经 DSH 设置系统注册（`ctx.settings.register('dsh-automation', schema, { applies: 'live' })`），设置页自动渲染「定时任务」设置卡，保存到 `<DSH_HOME>/settings.yaml`。
-
-| 字段 | 说明 | 默认 |
-|---|---|---|
-| `dataDir` | 数据目录覆盖；留空按 DSH 规范解析 | 空 |
-| `defaultTimeoutSeconds` | 任务默认超时秒数 | 1800 |
-| `tickMs` | 调度轮询间隔（ms）；修改后需重启生效 | 1000 |
-| `keepBackups` | SQLite 备份保留份数 | 10 |
-
-settings 服务缺失时回退 `DEFAULT_CONFIG`（插件照常工作）。
-
-## 8. HTTP API（server/api.ts）
-
-统一前缀 `/api/automation`，响应信封 `{ ok, code, message, ... }`。
-**路由按 path 聚合注册**（宿主 exact 路由按 path 唯一，不区分 method；未声明 method 返回 405 + Allow）。
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET / POST | `/api/automation/tasks` | 列出 / 创建任务 |
-| GET / PATCH / DELETE | `/api/automation/tasks/:id` | 详情 / 更新 / 删除 |
-| POST | `/api/automation/tasks/:id/run` | 立即运行 |
-| GET | `/api/automation/triggers` | 列出全部执行时间 |
-| POST | `/api/automation/tasks/:id/triggers` | 添加执行时间 |
-| PATCH / DELETE | `/api/automation/triggers/:id` | 更新 / 删除执行时间 |
-| GET | `/api/automation/upcoming` | 待运行 |
-| GET | `/api/automation/running` | 运行中 |
-| GET | `/api/automation/history` | 历史（支持 taskId/status/limit 筛选） |
-| GET | `/api/automation/runs` | 运行列表 |
-| GET | `/api/automation/runs/:id` | 运行详情（含日志） |
-| POST | `/api/automation/runs/:id/cancel` | 取消运行 |
-| GET | `/api/automation/status` | 服务状态（含数据目录 homeDir） |
-
-信任栅栏：非 loopback / 非同源请求拒绝（403）。
-
-## 9. Web 客户端（需求 §3）
-
-- **入口**：左侧「新会话」下方「定时任务」卡片条目（`sidebar.panellist`，id=`automation`），点击进入主面板（`main` keyed slot，key=`automation`）。
-- **主面板**：四 Tab「任务 / 待运行 / 运行中 / 历史」+ 新建/编辑 Drawer + 任务详情 + Run 详情。
-- **样式**：`style.ts` 注入单个 `<style>`，颜色取 DSH 主题变量（`--dsw-alias-*` 带兜底）；侧栏条目卡片化对齐「新会话」，含折叠 rail 态与激活态。
-- **数据**：经 `/api/automation` REST 获取；`/automation/ws` 状态心跳（可选增强）。
-
-## 10. 工具（tools/automation-tools.ts）
-
-16 个 `automation.*` 工具（详见 `docs/tools.md`），统一信封 + 文本投影。
-
-## 11. Skill（skills/automation/SKILL.md）
-
-中文 Skill：教 LLM 解析自然语言 → 调用工具（详见 `docs/skill.md`）；随包自注册（frontmatter 解析，缺失优雅降级）。
-
-## 12. 已知简化（V1 边界）
-
-- `tickMs` / `defaultTimeoutSeconds` 变更在服务启动时快照，运行时修改需重启生效（`applies: live` 仅保证设置即时落盘与下次启动生效）。
-- `command` 无 shell 时按空白分词；`script` 仅支持 `.py` / `.sh`。
-- 旧数据目录迁移只复制不删除（保留回退）。
+[宿主](../src/index.ts)、[设置桥](../src/host/settings.ts)、[迁移桥](../src/host/migration.ts)、[调度](../src/core/service.ts)、[时间](../src/shared/time.ts)、[进程](../src/actions/process.ts)、[存储](../src/storage/sqlite.ts)、[客户端](../src/client/index.ts)、[验收](VERIFICATION-0.2.0-rc.2+automation.1.md)。

@@ -40,6 +40,8 @@ export class TaskQueue {
 
   /** 排队一个 Run。 */
   enqueue(run: Run): QueuedRun {
+    const existing = this.byId.get(run.id)
+    if (existing) return existing
     const controller = new AbortController()
     const entry: QueuedRun = {
       run,

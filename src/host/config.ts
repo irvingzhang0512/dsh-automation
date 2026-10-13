@@ -1,10 +1,4 @@
-/**
- * dsh-automation 插件配置：schemastery schema 定义、默认值与类型推导。
- *
- * 配置经 DSH 设置系统（ctx.settings）注册——宿主通用设置 UI 依据 schema
- * 自动渲染「自动任务」设置卡，保存到 `<DSH_HOME>/settings.yaml`。
- * 变更实时生效（applies: 'live'），代码通过 getConfig() 读取当前值。
- */
+/** Desktop 0.2 Config：原条目经configEditor保存并正常重载；服务/存储使用启动快照。 */
 import Schema from '@deepseek-ai/schemastery'
 
 /** 配置项语义说明。 */
@@ -24,10 +18,10 @@ export const AutomationConfigSchema = Schema.object({
     .description('数据目录覆盖；留空自动解析为 DSH 数据目录下的 automation/')
     .default(''),
   defaultTimeoutSeconds: Schema.natural()
-    .description('任务默认超时秒数（任务未单独配置时）')
+    .min(1).max(2147483).description('直接任务默认超时秒数（任务未单独配置时）')
     .default(1800),
   tickMs: Schema.natural()
-    .description('调度轮询间隔（毫秒）；修改后需重启 DSH 生效')
+    .min(1).max(2147483647).description('直接任务调度检查间隔（毫秒）；服务重载后生效')
     .default(1000),
   keepBackups: Schema.natural()
     .description('SQLite 备份保留份数')

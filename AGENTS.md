@@ -17,23 +17,17 @@
 
 ## 项目概览
 
-DSH（DeepSeek Harness）定时自动任务插件。按需求规格
-`dsh-automation-requirements.md`（第一版 MVP）实现：
+当前版本0.2.0-rc.2+automation.1，功能／验收以 [实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
 
-- **核心对象模型**：Task（做什么）、Trigger（何时运行，一个 Task 可多个）、Run（一次实际执行）；
-- **后台调度服务**：Trigger Engine / Task Queue / Worker / Run Manager / Retry Manager / Storage，
-  与 `dsh web` 生命周期解耦，Web 重启不得中断已计划任务、正在运行的长期任务与任务历史；
-- **Action 四类**：Skill / Agent Prompt / Command / Script；
-- **并发策略**：skip（默认）/ queue / parallel；
-- **失败重试** 与 **超时**；
-- **存储**：SQLite（Node 内置 `node:sqlite`，无需原生依赖），数据目录 `~/.dsh/automation/`；
-- **Tool**：16 个 `automation.*` 工具，供 LLM / Skill 统一通过工具管理任务，禁止直改存储；
-- **Skill**：自动化中文 Skill（教 LLM 解析自然语言请求并调用 automation 工具）；
-- **Web**：左上“新会话”下方“自动任务”入口 + `/automation` 主页面（任务 / 待运行 / 运行中 / 历史 四 Tab + 新建任务 Drawer + 任务详情）。
+- 官方Schedule负责原会话提示词／Skill；自研仅直接命令／五种脚本，无Session／模型执行器。
+- 官方Bundle详情双分区配置，time-context／schedule／automation三个保存所有者；不注册重复侧栏。
+- SQLite、持久队列、超时／取消／重试、skip／queue／parallel、明确时区与迁移恢复。
+- 16工具及API保留。每版精确Bundle基线＋automation整数修订，禁止通用SemVer忽略build修订。
+- Git提交携带lib/完整运行产物；测试仅隔离Desktop，默认禁用副本任务。
 
 ## 仓库与分支
 
-- 仓库：`https://github.com/irvingzhang0512/dsh-automation.git`（远程待推送后补充）
+- 仓库：`https://github.com/irvingzhang0512/dsh-automation.git`（本版未推送）
 - 默认分支：`main`
 
 ## 目录结构
@@ -45,10 +39,10 @@ src/
   shared/          共享类型与纯函数（Task/Trigger/Run、时间计算、wire 协议）
   core/            Trigger Engine、Queue、Worker、Run Manager、Retry、Service
   storage/         SQLite 存储实现
-  actions/         Skill / Agent Prompt / Command / Script 四类执行器
+  actions/         Command / Script直接执行器
   tools/           automation.* 工具实现
   server/          /api/automation 路由
-  client/          Web 客户端（页面、四 Tab、Drawer、详情）
+  client/          Desktop客户端（官方详情配置、直接任务页面）
 skills/            automation 中文 Skill（SKILL.md）
 docs/              架构与设计文档
 tests/             Vitest 测试
@@ -62,7 +56,7 @@ npm test            # Vitest 单元测试
 npm run build       # 构建 lib/ 产物（tsc + tsdown 客户端 bundle）
 ```
 
-约定：`lib/`、`node_modules/` 不提交。
+约定：`lib/`提交运行产物；`node_modules/`不提交。
 
 ## Git 提交规范（Conventional Commits）
 

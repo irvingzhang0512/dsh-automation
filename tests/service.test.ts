@@ -213,26 +213,13 @@ describe('AutomationService：运行控制', () => {
     }
   })
 
-  it('skill 类型无宿主执行器：标记 failed', async () => {
+  it('模型任务引导官方Schedule，不创建Task或Run', () => {
     const memory = createMemoryStore()
-    const service = createService(memory.store)
-    service.start()
-    try {
-      const created = service.createTask(taskInput('技能任务', { type: 'skill', skill: 'nonexistent' }))
-      const id = (created as { task: { id: string } }).task.id
-      const result = service.runNow(id)
-      const runId = (result as { run_id: string }).run_id
-
-      await waitFor(() => service.getRun(runId)?.status === 'failed')
-      expect(service.getRun(runId)?.error).toContain('不支持的 Action 类型')
-    } finally {
-      service.dispose()
-      ;(memory.store as { close(): void }).close()
-    }
+    const service = new AutomationService(memory.store, { resolveExecutor: () => undefined })
+    try { expect(service.createTask(taskInput('技能任务',{type:'skill',skill:'test'})).code).toBe('USE_OFFICIAL_SCHEDULE'); expect(service.allTasks()).toEqual([]) }
+    finally { void service.dispose(); (memory.store as {close():void}).close() }
   })
-})
 
-describe('AutomationService：并发策略', () => {
   it('skip：同任务运行中时，新触发标记 skipped', async () => {
     const memory = createMemoryStore()
     // 挂起执行器：第一个实例保持 running。

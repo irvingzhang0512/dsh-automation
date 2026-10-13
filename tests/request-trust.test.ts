@@ -108,3 +108,13 @@ describe('isTrustedApiRequest（非 loopback 部署）', () => {
     }), ['192.168.1.5'])).toBe(false)
   })
 })
+
+describe('native Desktop origin', () => {
+  it('requires exact origin and a loopback transport, rejects cross-site', () => {
+    const headers = { host: '127.0.0.1:3080', origin: 'dsh-app://app' };
+    expect(isTrustedApiRequest({ headers, socket: { remoteAddress: '::ffff:127.0.0.1' } }, [])).toBe(true);
+    expect(isTrustedApiRequest({ headers }, [])).toBe(false);
+    expect(isTrustedApiRequest({ headers, socket: { remoteAddress: '192.168.1.5' } }, [])).toBe(false);
+    expect(isTrustedApiRequest({ headers: { ...headers, 'sec-fetch-site': 'cross-site' }, socket: { remoteAddress: '127.0.0.1' } }, [])).toBe(false);
+  });
+});

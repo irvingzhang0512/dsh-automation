@@ -15,6 +15,7 @@ import type { IncomingHttpHeaders } from 'node:http'
 /** 围栏读取的请求事实（IncomingMessage 的结构子集）。 */
 interface TrustRequest {
   headers: IncomingHttpHeaders
+  socket?: { remoteAddress?: string }
 }
 
 function header(headers: IncomingHttpHeaders, name: string): string | undefined {
@@ -61,6 +62,7 @@ export function isTrustedApiRequest(request: TrustRequest, trustedHosts: readonl
   if (header(request.headers, 'sec-fetch-site') === 'cross-site') return false
   const origin = header(request.headers, 'origin')
   if (origin === undefined) return true
+  if (origin === 'dsh-app://app') return !!request.socket?.remoteAddress && isLoopbackHostname(request.socket.remoteAddress.replace(/^::ffff:/, ''))
   try {
     return new URL(origin).hostname === hostUrl.hostname
   } catch {

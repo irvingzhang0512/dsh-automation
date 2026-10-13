@@ -1,3 +1,4 @@
+import type { OwnerSettings } from '../shared/settings.ts'
 /**
  * 浏览器端 /api/automation 客户端。
  *
@@ -148,6 +149,10 @@ export interface HistoryWire {
 /* ---------------- API 方法 ---------------- */
 
 export const api = {
+  settings: () => request<Envelope & { owners: OwnerSettings[]; compatibility?: { matched: boolean; reasons: string[] } }>('/settings'),
+  saveSettings: (body: unknown) => request<Envelope & { owners: OwnerSettings[] }>('/settings', { method: 'POST', body }),
+  migration: () => request<any>('/migration'),
+  mutateMigration: (body: unknown) => request<any>('/migration', { method: 'POST', body }),
   /** 服务状态。 */
   status: () => request<Envelope & { status: { running: boolean; queued: number; active: number; homeDir: string } }>('/status'),
 

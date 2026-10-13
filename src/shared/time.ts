@@ -10,6 +10,12 @@
  * Once 的 `at` 若是带时区的 ISO 字符串则按该时刻换算为本地时间。
  */
 import type { TriggerConfig } from './types.ts'
+import { Temporal } from '@js-temporal/polyfill'
+import {
+  ScheduleId, createAtScheduleRecord, createDailyScheduleRecord,
+  createWeeklyScheduleRecord, createCronScheduleRecord, canonicalizeCronExpression,
+} from '@deepseek-ai/dsh-schedule'
+import type { ScheduleCreateRequest } from '@deepseek-ai/dsh-schedule'
 
 /** 解析失败错误。 */
 export class TriggerConfigError extends Error {
@@ -166,7 +172,7 @@ export function parseCronExpr(expr: string): ParsedCron {
   const hour = parseCronField('hour', hourRaw!, 0, 23)
   const dayOfMonth = parseCronField('dayOfMonth', dayRaw!, 1, 31)
   const month = parseCronField('month', monthRaw!, 1, 12)
-  const dayOfWeek = parseCronField('dayOfWeek', weekRaw!, 0, 6)
+  const dayOfWeek = parseCronField('dayOfWeek', weekRaw!, 0, 7)
   return { minute, hour, dayOfMonth, month, dayOfWeek }
 }
 
@@ -181,6 +187,7 @@ function fieldMatches(field: CronField, value: number): boolean {
 
 /** 规范化 Trigger 配置为统一校验后的内部表示。 */
 export interface NormalizedTrigger {
+  config?: TriggerConfig
   kind: TriggerConfig['type']
   /** once：epoch ms。 */
   onceAt?: number
@@ -195,7 +202,7 @@ export interface NormalizedTrigger {
 }
 
 /** 解析并规范化 Trigger 配置（创建 / 更新时校验）。 */
-export function normalizeTrigger(config: TriggerConfig): NormalizedTrigger {
+function legacyNormalizeTrigger(config: TriggerConfig): NormalizedTrigger {
   switch (config.type) {
     case 'once':
       return { kind: 'once', onceAt: parseIsoInstant(config.at) }
@@ -254,7 +261,7 @@ function firstAfter(candidates: number[], from: number): number | undefined {
  * 计算 Trigger 在 `from`（epoch ms，含）之后的第一次触发时刻。
  * @returns epoch ms；`once` 已过期返回 undefined。
  */
-export function nextOccurrence(normalized: NormalizedTrigger, from: number): number | undefined {
+export function legacyNextOccurrence(normalized: NormalizedTrigger, from: number): number | undefined {
   switch (normalized.kind) {
     case 'once': {
       const at = normalized.onceAt!
@@ -367,4 +374,79 @@ export function nextOccurrence(normalized: NormalizedTrigger, from: number): num
 /** 便捷：直接由 Trigger 配置计算下一次运行时间。 */
 export function nextOccurrenceOf(config: TriggerConfig, from: number): number | undefined {
   return nextOccurrence(normalizeTrigger(config), from)
+}
+
+/** Current execution uses the official public Schedule rule constructors. */
+export function systemTimeZone(): string { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }
+export function triggerTimeZone(config: TriggerConfig): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: config.time_zone ?? systemTimeZone() }).resolvedOptions().timeZone
+}
+export function normalizeTrigger(config: TriggerConfig): NormalizedTrigger {
+  try {
+    const normalized = legacyNormalizeTrigger(config)
+    if (config.type === 'once') normalized.onceAt = onceInstant(config)
+    triggerTimeZone(config)
+    if (config.type === 'cron') canonicalizeCronExpression(config.expr)
+    return { ...normalized, config: { ...config, time_zone: triggerTimeZone(config) } }
+  } catch (error) { throw new TriggerConfigError(error instanceof Error ? error.message : String(error)) }
+}
+export function scheduleSelector(config: TriggerConfig): Omit<ScheduleCreateRequest, 'title' | 'prompt'> {
+  const time_zone = triggerTimeZone(config)
+  switch (config.type) {
+    case 'once': {
+      if (/([zZ]|[+-]\d\d:\d\d)$/.test(config.at)) return { at: config.at }
+      const [date, rawTime] = config.at.split('T')
+      return { at: { date: date!, time: wallTime(rawTime!), time_zone } }
+    }
+    case 'hourly': return { cron: { expression: (config.minute ?? 0) + ' * * * *', time_zone } }
+    case 'daily': return { daily: { time: wallTime(config.time), time_zone } }
+    case 'weekly': return { weekly: { time: wallTime(config.time), time_zone, weekdays: [config.weekday === 0 ? 7 : config.weekday] } }
+    case 'weekday': return { weekly: { time: wallTime(config.time), time_zone, weekdays: config.weekdays.map(day => day === 0 ? 7 : day) } }
+    case 'monthly':
+      if (config.day > 28) throw new TriggerConfigError('官方会话提醒不能等价表达月末截断，请修改时间规则后迁移。')
+      return { cron: { expression: parseTimeOfDay(config.time).minute + ' ' + parseTimeOfDay(config.time).hour + ' ' + config.day + ' * *', time_zone } }
+    case 'cron': return { cron: { expression: canonicalizeCronExpression(config.expr), time_zone } }
+  }
+}
+function wallTime(value: string): string { return /^\d{1,2}:\d{2}$/.test(value) ? value.padStart(5, '0') + ':00' : value }
+export function onceInstant(config: TriggerConfig): number {
+  if (config.type !== 'once') throw new TriggerConfigError('需要一次性时间规则。')
+  if (/([zZ]|[+-]\d\d:\d\d)$/.test(config.at)) return Temporal.Instant.from(config.at).epochMilliseconds
+  return Temporal.PlainDateTime.from(config.at).toZonedDateTime(triggerTimeZone(config), { disambiguation: 'reject' }).epochMilliseconds
+}
+export function nextOccurrence(normalized: NormalizedTrigger, from: number): number | undefined {
+  const config = normalized.config
+  if (!config) throw new TriggerConfigError('时间规则缺少原始配置。')
+  try {
+    const id = ScheduleId('automation-rule'), prompt = 'Direct execution timing', title = '直接任务'
+    if (config.type === 'once') { const at = onceInstant(config); return at > from ? Date.parse(createAtScheduleRecord(id, prompt, new Date(at).toISOString(), from, title).scheduledAt) : undefined }
+    if (config.type === 'monthly') {
+      const local = Temporal.Instant.fromEpochMilliseconds(from).toZonedDateTimeISO(triggerTimeZone(config))
+      const { hour, minute } = parseTimeOfDay(config.time)
+      for (let offset = 0; offset <= 24; offset++) {
+        const month = Temporal.PlainYearMonth.from({ year: local.year, month: local.month }).add({ months: offset })
+        const date = month.toPlainDate({ day: Math.min(config.day, month.daysInMonth) })
+        const instant = date.toPlainDateTime({ hour, minute }).toZonedDateTime(triggerTimeZone(config), { disambiguation: 'compatible' }).epochMilliseconds
+        if (instant <= from) continue
+        return Date.parse(createAtScheduleRecord(id, prompt, new Date(instant).toISOString(), from, title).scheduledAt)
+      }
+      return undefined
+    }
+    const selector = scheduleSelector(config)
+    const record = selector.daily ? createDailyScheduleRecord(id, prompt, selector.daily, from, title)
+      : selector.weekly ? createWeeklyScheduleRecord(id, prompt, selector.weekly, from, title)
+      : createCronScheduleRecord(id, prompt, selector.cron!, from, title)
+    return Date.parse(record.scheduledAt)
+  } catch (error) { throw new TriggerConfigError(error instanceof Error ? error.message : String(error)) }
+}
+/** Old parser matched date AND weekday; official Vixie rules may instead use OR. */
+export function legacyRuleIssue(config: TriggerConfig): string | undefined {
+  try {
+    normalizeTrigger(config)
+    if (config.type === 'cron' && !config.time_zone) {
+      const fields = config.expr.trim().split(/\s+/)
+      if (!fields[2]?.startsWith('*') && !fields[4]?.startsWith('*')) return '旧 Cron 的日期与星期按 AND 匹配，官方按 OR 匹配；请确认新规则。'
+    }
+    return undefined
+  } catch (error) { return error instanceof Error ? error.message : String(error) }
 }

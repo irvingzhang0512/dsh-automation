@@ -20,7 +20,7 @@
  * - Task / Trigger / Run 的 CRUD；
  * - Run 日志：写入 DB（结构化行）+ logs/ 文件（文本副本）；
  * - 同步 API（DatabaseSync），Node 事件循环内天然串行，无需外部锁；
- * - 长期持久化：启动时与周期性 SQLite 备份（wal_checkpoint 后复制）。
+ * - 长期持久化：启动时一致性 SQLite 快照；迁移备份独立保留。
  */
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import {
@@ -28,7 +28,7 @@ import {
 } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, createHash } from 'node:crypto'
 import type {
   AutomationStore, AutomationId, Run, RunStatus, Task, Trigger, TriggerInput,
   CreateTaskInput, TriggerConfig, RetryConfig, ActionSpec, ConcurrencyPolicy, TaskSource,
@@ -235,18 +235,14 @@ export class SqliteAutomationStore implements AutomationStore {
     this.db.close()
   }
 
-  /** 立即做一次一致性备份（wal_checkpoint 后复制 db 到 backup/，清理最旧）。 */
-  backupNow(): string | undefined {
-    if (this.keepBackups <= 0) return undefined
-    try {
-      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE);')
-    } catch {
-      // checkpoint 失败不阻断备份（WAL 未落盘内容可能丢失，但主文件一致）。
-    }
+  /** 立即做一致性备份；强制迁移快照独立前缀，不参与常规轮转。 */
+  backupNow(force = false): string | undefined {
+    if (this.keepBackups <= 0 && !force) return undefined
+    mkdirSync(this.backupDir, { recursive: true })
     const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const target = join(this.backupDir, `automation.${stamp}.db`)
-    copyFileSync(this.dbPath, target)
-    this.rotateBackups()
+    const target = join(this.backupDir, `${force ? 'migration' : 'automation'}.${stamp}.${rand()}.db`)
+    this.db.prepare('VACUUM INTO ?').run(target)
+    if (!force) this.rotateBackups()
     return target
   }
 
@@ -319,7 +315,51 @@ export class SqliteAutomationStore implements AutomationStore {
         run_id TEXT PRIMARY KEY,
         lines TEXT NOT NULL DEFAULT ''
       );
+      CREATE TABLE IF NOT EXISTS automation_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     `)
+  }
+
+  getMeta<T = unknown>(key: string): T | undefined {
+    const row = this.db.prepare('SELECT value FROM automation_meta WHERE key = ?').get(key) as { value: string } | undefined
+    return row ? JSON.parse(row.value) as T : undefined
+  }
+  setMeta(key: string, value: unknown): void {
+    this.db.prepare('INSERT OR REPLACE INTO automation_meta (key,value) VALUES (?,?)').run(key, JSON.stringify(value))
+  }
+  transaction<T>(operation: () => T): T {
+    this.db.exec('BEGIN IMMEDIATE')
+    try { const result = operation(); this.db.exec('COMMIT'); return result } catch (error) { this.db.exec('ROLLBACK'); throw error }
+  }
+  hasOccurrence(triggerId: string, scheduledAt: string): boolean {
+    return !!this.db.prepare('SELECT id FROM runs WHERE trigger_id = ? AND scheduled_at = ? LIMIT 1').get(triggerId, scheduledAt)
+  }
+  unfinishedRuns(): Run[] {
+    return (this.db.prepare("SELECT * FROM runs WHERE status IN ('pending','running') ORDER BY scheduled_at,id").all() as unknown as RunRow[]).map(rowToRun)
+  }
+  fingerprint(): string {
+    const digest = createHash('sha256')
+    for (const [table,key] of [['tasks','id'],['triggers','id'],['runs','id'],['run_logs','run_id'],['automation_meta','key']]) {
+      digest.update(table!)
+      const where = table === 'automation_meta' ? " WHERE key != 'migration-records'" : ''
+      for (const row of this.db.prepare(`SELECT * FROM ${table}${where} ORDER BY ${key}`).iterate()) digest.update(JSON.stringify(row))
+    }
+    return digest.digest('hex')
+  }
+  restoreSnapshot(file: string): void {
+    if (!file.startsWith(this.backupDir + (process.platform === 'win32' ? '\\' : '/'))) throw Error('备份不属于此数据目录。')
+    const saved = new DatabaseSync(file, { readOnly: true })
+    try {
+      this.transaction(() => {
+        for (const table of ['run_logs','runs','triggers','tasks','automation_meta']) {
+          const rows = saved.prepare(`SELECT * FROM ${table}`).all()
+          this.db.exec(`DELETE FROM ${table}`)
+          for (const row of rows) {
+            const keys = Object.keys(row)
+            this.db.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map(key => row[key]) as SQLInputValue[])
+          }
+        }
+      })
+    } finally { saved.close() }
   }
 
   /* ---------------- Task ---------------- */

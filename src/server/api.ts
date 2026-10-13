@@ -29,7 +29,7 @@ import type { AutomationResult, CreateTaskInput, TriggerInput } from '../shared/
 import { isTrustedApiRequest } from '../shared/request-trust.ts'
 
 /** 路由定义。 */
-interface ApiRoute {
+export interface ApiRoute {
   method: string
   path: string
   handler: (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown) => Promise<void> | void
@@ -121,7 +121,7 @@ export function automationRoutes(service: AutomationService): ApiRoute[] {
     method: 'POST',
     path: '/api/automation/tasks',
     handler: async (_req, res, _params, body) => {
-      const input = body as Partial<CreateTaskInput>
+      const input = body as Partial<CreateTaskInput> & { triggers?: import('../shared/types.ts').TriggerConfig[] }
       if (typeof input?.name !== 'string' || input.name === '') {
         json(res, 400, { ok: false, code: 'INVALID_INPUT', message: '缺少任务名称（name）。' })
         return
@@ -140,7 +140,7 @@ export function automationRoutes(service: AutomationService): ApiRoute[] {
         retry: input.retry,
         timeout_seconds: input.timeout_seconds,
         created_by: 'web',
-      })
+      }, input.triggers ?? [])
       respondResult(res, result)
     },
   })
@@ -318,6 +318,7 @@ export function mountAutomationRoutes(
     webRuntime: AutomationWebRuntime
   },
   service: AutomationService,
+  extensions: ApiRoute[] = [],
 ): () => void {
   const disposers: Array<() => void> = []
   // 信任围栏：与 /api 网关一致（Host 回环/可信权威 + 同源标记），见 shared/request-trust.ts。
@@ -329,7 +330,7 @@ export function mountAutomationRoutes(
   // /api/automation 会正确压过宿主的 /api 通道），在 handler 内自行做模式匹配与
   // method 分发；未声明的方法返回 405 + Allow 头（与 dshmarket 一致）。
   const byPath = new Map<string, Map<string, ApiRoute>>()
-  for (const route of automationRoutes(service)) {
+  for (const route of [...automationRoutes(service), ...extensions]) {
     let byMethod = byPath.get(route.path)
     if (byMethod === undefined) {
       byMethod = new Map()
@@ -360,7 +361,8 @@ export function mountAutomationRoutes(
           const body = ['POST', 'PATCH', 'PUT'].includes(route.method) ? await readBody(req) : undefined
           await route.handler(req, res, params, body)
         } catch (err) {
-          json(res, 400, { ok: false, code: 'BAD_REQUEST', message: err instanceof Error ? err.message : String(err) })
+          const problem = err as { code?: string; status?: number }
+          json(res, problem.status ?? 400, { ok: false, code: problem.code ?? 'BAD_REQUEST', message: err instanceof Error ? err.message : String(err) })
         }
         return
       }

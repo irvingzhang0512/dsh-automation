@@ -29,7 +29,7 @@ const BUNDLE_ID = 'dsh-automation'
  * 平台外部依赖（shell 静态模块表提供）：React 及其 JSX runtime。
  * 不声明 @deepseek-ai/*：跨插件协作走 cordis 服务，禁止 value import。
  */
-const PLATFORM_EXTERNALS = ['react', 'react-dom', 'react/jsx-runtime', 'react-dom/client', 'cordis']
+const PLATFORM_EXTERNALS = ['react', 'react-dom', 'react/jsx-runtime', 'react-dom/client', 'cordis', '@deepseek-ai/dsh-client-ui-primitives']
 
 /** 拒绝 @deepseek-ai value import 与 Node 内建泄漏。 */
 function purityGate(): NonNullable<UserConfig['plugins']> {
@@ -42,7 +42,7 @@ function purityGate(): NonNullable<UserConfig['plugins']> {
             `client bundle purity: Node builtin "${source}" cannot run in the browser module table`,
           )
         }
-        if (source.startsWith('@deepseek-ai/')) {
+        if (source.startsWith('@deepseek-ai/') && !PLATFORM_EXTERNALS.includes(source)) {
           throw new Error(
             `client bundle purity: "${source}" is not a platform module — ` +
             'cross-plugin value imports are forbidden; collaborate through cordis services',

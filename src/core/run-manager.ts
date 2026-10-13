@@ -64,11 +64,15 @@ export class RunManager {
     this.deps.updateRun(run.id, { status: 'running', started_at: entry.run.started_at })
     const timeoutSeconds = task.timeout_seconds ?? this.deps.defaultTimeoutSeconds
     if (timeoutSeconds > 0) {
-      entry.timer = setTimeout(() => {
-        this.timeout(entry)
-      }, timeoutSeconds * 1000)
-      // 不阻止进程退出。
-      entry.timer.unref?.()
+      const deadline = Date.now() + timeoutSeconds * 1000
+      const arm = (): void => {
+        entry.timer = setTimeout(() => {
+          if (Date.now() < deadline) arm()
+          else this.timeout(entry)
+        }, Math.min(deadline - Date.now(), 2147483647))
+        entry.timer?.unref?.()
+      }
+      arm()
     }
     this.active.set(run.id, entry)
     return entry

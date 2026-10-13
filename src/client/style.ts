@@ -2,11 +2,13 @@
  * dsh-automation — 注入的样式（唯一 `<style data-dsh-automation-style>`，类名带 `da-` 前缀）。
  *
  * 颜色全部取自 DSH 主题变量（dsh-client-ui-theme 的 --dsw-alias-*，带兜底值），
- * 与「新会话」「日程」等主界面保持一致。侧栏条目卡片化对齐「新会话」按钮。
+ * 与「新会话」「日程」等主界面保持一致。增强界面只影响自有da-类。
  */
 const CSS = `
+.da-settings{color:var(--dsw-alias-label-primary,#1f2328);font-size:14px;min-width:0;padding:16px 0;box-sizing:border-box}.da-settings *{box-sizing:border-box}.da-settings-owner{border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:12px;padding:16px;margin:16px 0;background:var(--dsw-alias-bg-layer-1,#fff)}.da-settings h2,.da-settings h3{margin:0 0 12px}.da-setting-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(160px,2fr);gap:8px 16px;margin:14px 0;align-items:center}.da-setting-control{display:flex;gap:8px;align-items:center;min-width:0}.da-setting-control input{width:100%;min-width:0;height:36px;border:1px solid var(--dsw-alias-border-l2,#ddd);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#fafafa);color:inherit;padding:6px 10px}.da-setting-row small{grid-column:2;color:var(--dsw-alias-label-secondary,#666)}.da-settings-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.da-settings [hidden]{display:none!important}.da-migration-rule{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font-size:12px}.da-settings select{max-width:100%;background:var(--dsw-alias-bg-layer-1,#fff);color:inherit}.da-root input,.da-root select,.da-root textarea{color:var(--da-text)}@media(max-width:640px){.da-setting-row{grid-template-columns:1fr}.da-setting-row small{grid-column:1}.da-root button{white-space:normal}.da-root [data-task-actions]{flex-wrap:wrap}}
+
 .da-root{--da-border:var(--dsw-alias-border-l2,#e5e7eb);--da-border-strong:var(--dsw-alias-border-l3,#d0d3d9);--da-text:var(--dsw-alias-label-primary,#1f2328);--da-text-dim:var(--dsw-alias-label-secondary,#57606a);--da-text-faint:var(--dsw-alias-label-tertiary,#8b949e);--da-accent:var(--dsw-alias-brand-primary,#2f6fed);--da-bg:var(--dsw-alias-bg-base,#f7f8fa);--da-card:var(--dsw-alias-bg-layer-1,#ffffff);--da-card-2:var(--dsw-alias-bg-layer-2,#f2f3f5);--da-hover:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.05));--da-ok:var(--dsw-alias-state-success-primary,#2e7d32);--da-err:var(--dsw-alias-state-error-primary,#c62828);--da-warn:var(--dsw-alias-state-warn-primary,#b26a00);
-display:flex;flex-direction:column;height:100%;min-height:0;background:var(--da-bg);color:var(--da-text);font-size:14px;line-height:1.5;overflow:hidden;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;}
+display:flex;flex-direction:column;height:100%;min-height:0;background:var(--da-bg);color:var(--da-text);font-size:14px;line-height:1.5;overflow:auto;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;}
 .da-root *{box-sizing:border-box;}
 .da-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--da-border-strong);background:var(--da-card);flex:none;}
 .da-header h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.2px;}
@@ -53,48 +55,8 @@ display:flex;flex-direction:column;height:100%;min-height:0;background:var(--da-
 .da-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .da-log{font-size:12px;background:var(--da-card-2);border-radius:8px;padding:10px;overflow:auto;max-height:300px;white-space:pre-wrap;margin:0;color:var(--da-text);}
 
-/* ── DSH 侧边栏面板条目展示覆盖（非 .da- 体系）──────────────────────────
- * 框架把面板条目渲染为透明灰字行（panelRow），而「新会话」是白卡片。
- * 这里把条目卡片化对齐「新会话」；CSS modules 类名为“哈希前缀+原名”，
- * 用 [class*=原名] 稳定匹配，失配时自动降级回框架原生样式（纯视觉，无功能影响）。
- */
-body [class*="root"]:not([class*="collapsed"]) nav[class*="panelList"] button[class*="panelRow"]{
-  border:.5px solid var(--dsw-alias-border-l3,#d0d3d9);
-  background:var(--dsw-alias-button-elevated-fill,#ffffff);
-  border-radius:12px;height:38px;min-height:38px;margin:0 2px;
-  justify-content:center;gap:6px;padding:8px 16px;
-  color:var(--dsw-alias-label-primary,#1f2328);
-  font-size:14px;font-weight:500;line-height:22px;
-}
-body [class*="root"]:not([class*="collapsed"]) nav[class*="panelList"] button[class*="panelRow"]:hover{
-  background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.04));
-}
-body [class*="root"]:not([class*="collapsed"]) nav[class*="panelList"] button[class*="panelRow"][class*="panelActive"]{
-  background:var(--dsw-alias-interactive-bg-active,rgba(47,111,237,.1));
-  box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary,#2f6fed);
-  color:var(--dsw-alias-label-primary,#1f2328);
-}
-/* 折叠态（36px rail）：还原为透明图标，与「新会话」折叠态一致 */
-[class*="collapsed"] nav[class*="panelList"] button[class*="panelRow"]{
-  background:0 0;border-color:transparent;border-radius:8px;
-  width:36px;height:36px;min-height:36px;margin:0;justify-content:center;padding:0;box-shadow:none;
-}
+
 `
-
 let injected = false
-
-/** 注入一次样式；幂等。 */
-export function injectStyle(): void {
-  if (injected) return
-  const style = document.createElement('style')
-  style.setAttribute('data-dsh-automation-style', '')
-  style.textContent = CSS
-  document.head.appendChild(style)
-  injected = true
-}
-
-/** 测试/卸载用（可逆）。 */
-export function removeStyle(): void {
-  document.head.querySelectorAll('[data-dsh-automation-style]').forEach(node => node.remove())
-  injected = false
-}
+export function injectStyle(): void { if (injected) return; const style = document.createElement('style'); style.setAttribute('data-dsh-automation-style',''); style.textContent = CSS; document.head.appendChild(style); injected = true }
+export function removeStyle(): void { document.head.querySelectorAll('[data-dsh-automation-style]').forEach(node => node.remove()); injected = false }
