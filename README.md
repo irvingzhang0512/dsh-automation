@@ -33,8 +33,8 @@ Git安装固定完整提交或发布tag，提交携带lib/构建产物。仓库�
 ```sh
 npm install
 npm run typecheck
-npm test
 npm run build
+npm test
 ```
 
 lib/提交，node_modules/不提交；客户端从宿主模块表加载React与原生控件。先构建再运行客户端产物冒烟；真实格式测试需Python、Bash、PowerShell、Node。开发仅使用隔离Desktop，不自动替换日常或恢复Web。

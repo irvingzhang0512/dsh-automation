@@ -26,8 +26,8 @@
 
 ## 分发与边界
 
-构建产物随Git提交，包元信息与精确宿主peer保留。固定本地Git安装验收将在本文件的收尾记录追加；公开GitHub固定URL需先有用户授权推送／tag后再验，当前不声明远端已可下载本版。
+构建产物随Git提交，包元信息与精确宿主peer保留。Desktop安装包CLI／pnpm11.7.0从固定本地Git提交安装成功，实际包版本保留完整+automation.1，lib／client／Skill均来自安装来源；真实carrier匹配及8字段保存／读回／重置、直接执行无新Session、忙碌和CSRF保护、迁移恢复再验通过。公开GitHub固定URL需先有用户授权推送／tag后再验，当前不声明远端已可下载本版。
 
-测试记录在维护仓库忽略的.local/desktop-automation-020和.local/desktop-automation-final-020，含host-verification、daily-copy-verification、robust-ui-matrix、robust-drafts、visible-theme-layout及可见截图。凭据、URL令牌和原始私人任务不提交。
+测试记录在维护仓库忽略的.local/desktop-automation-020和.local/desktop-automation-final-020，含host-verification、daily-copy-verification、actual-official-migration、all-eight-invalid-conflict、robust-ui-matrix、robust-drafts、visible-theme-layout及可见截图。凭据、URL令牌和原始私人任务不提交。
 
 历史environment.json／versions.lock.json保持原组合；新组合单列候选，不作为安装／恢复输入。全仓7天完整巡检仍待办，本次局部开发不代替全量兼容验证。

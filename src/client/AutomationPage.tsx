@@ -101,7 +101,7 @@ const buttonStyle: React.CSSProperties = {
 function tabStyle(active: boolean): React.CSSProperties {
   return {
     padding: '6px 14px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13,
-    background: active ? '#e8f0fe' : 'transparent', color: active ? '#1a56db' : '#555',
+    background: active ? '#e8f0fe' : 'transparent', color: active ? '#1a56db' : 'var(--dsw-alias-label-secondary,#555)',
     fontWeight: active ? 600 : 400,
   }
 }
@@ -139,7 +139,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
         key: task.id,
         style: { border: '1px solid #e5e5e5', borderRadius: 8, padding: '10px 14px', background: 'var(--dsw-alias-bg-layer-1,#fff)' },
       },
-        createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 } },
+        createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' } },
           createElement('div', { style: { minWidth: 0 } },
             createElement('div', { style: { fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 } },
               createElement('span', null, task.name),
@@ -155,7 +155,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
               `${actionLabel(task.action)}${task.concurrency !== undefined ? ` · 并发:${task.concurrency}` : ''}${task.timeout_seconds !== undefined ? ` · 超时:${task.timeout_seconds}s` : ''}`,
             ),
           ),
-          createElement('div', { style: { display: 'flex', gap: 6, flexShrink: 0 } },
+          createElement('div', { 'data-task-actions': true, style: { display: 'flex', gap: 6, flexShrink: 0, maxWidth: '100%', flexWrap: 'wrap' } },
             createElement('button', { style: smallButtonStyle, onClick: () => { void api.runNow(task.id).then(props.onChanged).catch(alertError) } }, '立即运行'),
             createElement('button', { style: smallButtonStyle, onClick: () => { void api.updateTask(task.id, { enabled: !task.enabled }).then(props.onChanged).catch(alertError) } }, task.enabled ? '暂停' : '启用'),
             createElement('button', { style: smallButtonStyle, onClick: () => setDetailId(task.id) }, '详情'),
@@ -197,7 +197,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
   const [retryEnabled, setRetryEnabled] = useState(props.task?.retry?.enabled ?? false)
   const [retryMax, setRetryMax] = useState(props.task?.retry?.max_attempts?.toString() ?? '2')
   const [retryDelay, setRetryDelay] = useState(props.task?.retry?.delay_seconds?.toString() ?? '60')
-  // Trigger（新建时可选添加一个）。
+  // Trigger（新建时添加初始时间）。
   const [triggerType, setTriggerType] = useState<'daily' | 'hourly' | 'weekly' | 'weekday' | 'monthly' | 'once' | 'cron'>('daily')
   const [triggerTime, setTriggerTime] = useState('09:00')
   const [triggerWeekday, setTriggerWeekday] = useState('1')
@@ -313,8 +313,8 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
           createElement('select', { style: inputStyle, value: actionType, onChange: (e: ChangeEvent) => setActionType(e.target.value as never) },
 
 
-            createElement('option', { value: 'command' }, 'Command'),
-            createElement('option', { value: 'script' }, 'Script'),
+            createElement('option', { value: 'command' }, '命令'),
+            createElement('option', { value: 'script' }, '脚本'),
           ),
         ),
         actionType === 'command' && createElement('div', null,
@@ -369,7 +369,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
         ),
         /* 执行时间（仅新建时） */
         props.mode === 'create' && createElement('div', null,
-          createElement('label', { style: fieldLabel }, '执行时间（可选，后续可加多个）'),
+          createElement('label', { style: fieldLabel }, '执行时间（后续可加多个）'),
           createElement('select', { style: inputStyle, value: triggerType, onChange: (e: ChangeEvent) => setTriggerType(e.target.value as never) },
             createElement('option', { value: 'daily' }, '每天'),
             createElement('option', { value: 'hourly' }, '每小时'),
@@ -704,13 +704,13 @@ function RunDetail(props: { runId: string; onClose: () => void }) {
         data.run.error !== undefined && createElement('div', { style: { fontSize: 13, color: '#c0392b', background: '#fdf0ef', borderRadius: 6, padding: 10 } }, data.run.error),
         data.run.output !== undefined && data.run.output !== '' && createElement('div', null,
           createElement('h3', { style: { fontSize: 13, margin: '0 0 6px' } }, '输出'),
-          createElement('pre', { style: { fontSize: 12, background: '#f7f7f7', borderRadius: 6, padding: 10, overflowX: 'auto', maxHeight: 240, overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 } }, data.run.output),
+          createElement('pre', { style: { fontSize: 12, background: 'var(--dsw-alias-bg-layer-2,#f7f7f7)', borderRadius: 6, padding: 10, overflowX: 'auto', maxHeight: 240, overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 } }, data.run.output),
         ),
         createElement('div', null,
           createElement('h3', { style: { fontSize: 13, margin: '0 0 6px' } }, '执行日志'),
           data.logs.length === 0
             ? createElement('div', { style: { color: '#999', fontSize: 13 } }, '（无日志）')
-            : createElement('pre', { style: { fontSize: 12, background: '#f7f7f7', borderRadius: 6, padding: 10, overflowX: 'auto', maxHeight: 320, overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 } }, data.logs.join('\n')),
+            : createElement('pre', { style: { fontSize: 12, background: 'var(--dsw-alias-bg-layer-2,#f7f7f7)', borderRadius: 6, padding: 10, overflowX: 'auto', maxHeight: 320, overflowY: 'auto', whiteSpace: 'pre-wrap', margin: 0 } }, data.logs.join('\n')),
         ),
       ),
     ),
