@@ -4,7 +4,7 @@
 
 ## 功能与归属
 
-- F001–F004、F006–F008、F010：仅承载直接任务（command/script）；原 16 个 automation.* 名称和结果信封保留。新建或切换到 skill/agent_prompt 返回 USE_OFFICIAL_SCHEDULE；旧记录可读、可迁移，不能重新启用旧执行器。
+- F001–F004、F006–F008、F010：仅承载直接任务（command/script）；本契约原批准版保留16个操作及结果信封。0.2.0-rc.2+automation.3 的名称改为 automation_ 前缀，替代此前 automation.* 名称约定，详见已确认的[工具名称契约](tools.md)；其他参数、结果及行为沿用。新建或切换到 skill/agent_prompt 返回 USE_OFFICIAL_SCHEDULE；旧记录可读、可迁移，不能重新启用旧执行器。
 - F005/F009：旧模型执行器及 agent 名选择退役。会话任务由官方 Schedule 在原会话处理，automation Skill 引导调用 schedule_*，不声明投递等于执行完成。
 - F011：依赖 Desktop、schedule Bundle 和三成员 0.2.0-rc.2。直接执行时间通过官方公开函数；自研保留队列、进程、运行记录。每月日期不足仍截断到月末。
 - F012：官方 Bundle 详情中通过 plugins.detail.section 展示「官方配置」「Automation 配置」；独立草稿和保存。官方分 time-context/schedule 两所有者；没有保存全部。原 automation 主面板只从详情按钮进入，不注册 sidebar.panellist。

@@ -1,10 +1,12 @@
 # dsh-automation 当前功能规格
 
-批准版：official-automation-20261014-v1 与 automation-integrated-page-20261014-v2；用户于2026-10-14明确要求实施两版方案。当前包版本0.2.0-rc.2+automation.2。原始需求[只读保留](../dsh-automation-requirements.md)；旧升级提案[作为历史](DSH-UPGRADE-20261011.md)。执行细节见[实施契约](IMPLEMENTATION-20261014.md)，配置技术映射见[配置表](CONFIG-UI.md)。
+批准版：official-automation-20261014-v1、automation-integrated-page-20261014-v2 与 automation-tool-names-20261014-v1；用户于2026-10-14明确要求实施同版方案。当前包版本0.2.0-rc.2+automation.3。原始需求[只读保留](../dsh-automation-requirements.md)；旧升级提案[作为历史](DSH-UPGRADE-20261011.md)。执行细节见[实施契约](IMPLEMENTATION-20261014.md)，工具名称以[工具契约](tools.md)为准，配置技术映射见[配置表](CONFIG-UI.md)。
 
 2026-10-14 同页任务整合获明确实施批准，契约 `automation-integrated-page-20261014-v2`；当前差异见[同页任务契约](INTEGRATED-TASK-PAGE-20261014.md)，实际验证见[本版验收](VERIFICATION-0.2.0-rc.2+automation.2.md)。
 
 功能变化先修改规格与验收／相关技术契约，用户明确确认该版后开发；已确认同版不重复询问，预期不变的Bug直接修复。维护流程见[根文档规范](../../docs/DOC-DRIVEN-DEVELOPMENT.md)。
+
+2026-10-14 用户明确要求实施「自动化工具名称兼容修复」计划，确认 `automation-tool-names-20261014-v1`：保留16个操作，将 `automation.<操作名>` 改为 `automation_<操作名>`，旧名退役、不注册别名；参数／结果／执行语义、HTTP API及业务数据不变。目标版本 `0.2.0-rc.2+automation.3`，仅交付隔离验证版，日常安装另行安排。对应工具契约见[工具清单](tools.md)。本段逐项承接用户确认的同版计划，不新增语义差异。
 
 ## 当前实现状态
 
@@ -48,9 +50,10 @@
 
 ## F007 页面工具与API
 
-- 预期与验收：16工具及/api/automation保留，原生同源围栏，直接页四Tab嵌入侧栏自动化任务同页。
-- 实现状态：已实现；[源码](../src/server/api.ts)。
-- 自动验证入口：[用例](../tests/api.test.ts)；实际执行结果见本版验收。
+- 预期与验收：16个操作及/api/automation保留，工具仅注册 `automation_<操作名>`；名称唯一、长度不超过64且匹配 `^[a-zA-Z0-9_-]+$`，卸载释放全部注册。参数、结果信封与服务操作不变；原生同源围栏、直接页四Tab及同页入口沿用。
+- 兼容边界：旧点号名称退役、不注册别名；任务／触发器／运行历史不以工具名关联，无数据库迁移。检查当前持久工具过滤／明确名称引用并逐项列明迁移；未知／无关字段保留。会话日志不改写，仅失败记录的旧会话验证新轮次；含旧工具调用的会话通过新会话或官方压缩后过渡，不承诺直接续聊兼容。
+- 实现状态：已实现；[工具源码](../src/tools/automation-tools.ts)、[API源码](../src/server/api.ts)。
+- 自动验证入口：[工具用例](../tests/tools.test.ts)、[API用例](../tests/api.test.ts)；实际注册、调用、卸载与隔离Desktop携带全部新工具调用DeepSeek V4.1、执行 `automation_list_tasks` 后完整回复的结果见[本版验收](VERIFICATION-0.2.0-rc.2+automation.3.md)，不复用此前仅HTTP 200的诊断作为通过依据。
 
 ## F008 配置所有权
 

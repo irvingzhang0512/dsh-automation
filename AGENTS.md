@@ -17,13 +17,13 @@
 
 ## 项目概览
 
-当前版本0.2.0-rc.2+automation.2，功能／验收以 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
+当前版本0.2.0-rc.2+automation.3，功能／验收以 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
 
 - 官方Schedule负责原会话提示词／Skill；自研仅直接命令／五种脚本，无Session／模型执行器。
 - 官方Bundle详情双分区配置，time-context／schedule／automation三个保存所有者；不注册重复侧栏。
 - 官方侧栏schedules同页会话／直接任务；公开优先级复用官方Component／inject／locale，卸载恢复。新建意图消费后清除，草稿与保存中有切换保护；不修改官方DOM。
 - SQLite、持久队列、超时／取消／重试、skip／queue／parallel、明确时区与迁移恢复。
-- 16工具及API保留。每版精确Bundle基线＋automation整数修订，禁止通用SemVer忽略build修订。
+- 16工具使用automation_前缀，旧点号名称退役；API保留。每版精确Bundle基线＋automation整数修订，禁止通用SemVer忽略build修订。
 - Git提交携带lib/完整运行产物；测试仅隔离Desktop，默认禁用副本任务。
 
 ## 仓库与分支
@@ -41,7 +41,7 @@ src/
   core/            Trigger Engine、Queue、Worker、Run Manager、Retry、Service
   storage/         SQLite 存储实现
   actions/         Command / Script直接执行器
-  tools/           automation.* 工具实现
+  tools/           automation_* 工具实现
   server/          /api/automation 路由
   client/          Desktop客户端（官方详情配置、直接任务页面）
 skills/            automation 中文 Skill（SKILL.md）
@@ -95,6 +95,6 @@ chore: 初始化 git 仓库并提交首个版本
 - Scheduler 只负责“什么时候运行 / 运行什么 / 运行到什么状态 / 是否成功 / 历史”，
   具体业务（Skill / Agent / Command / Script / Tool / Plugin Action）由 DSH 已有能力完成；
 - 禁止由浏览器页面或 `dsh web` 进程直接承载定时任务生命周期；
-- LLM / Skill 不得直接修改任务存储文件，所有操作统一通过 `automation.*` 工具；
+- LLM / Skill 不得直接修改任务存储文件，所有操作统一通过 `automation_*` 工具；
 - Task 与 Run 严格区分：取消某一次 Run 不等于删除整个 Task；
 - “取消本次运行”不能影响后续周期性任务。

@@ -1,14 +1,14 @@
 /**
- * automation.* 工具注册。
+ * automation_* 工具注册。
  *
  * LLM / Skill 不应直接修改任务存储文件——所有操作统一通过工具完成
  * （需求 §12）。第一版提供 16 个工具：
  *
- *   automation.create_task / update_task / delete_task / get_task / list_tasks
- *   automation.enable_task / disable_task
- *   automation.add_trigger / update_trigger / delete_trigger
- *   automation.list_upcoming_runs / list_running_runs / list_history / get_run
- *   automation.run_now / cancel_run
+ *   automation_create_task / update_task / delete_task / get_task / list_tasks
+ *   automation_enable_task / disable_task
+ *   automation_add_trigger / update_trigger / delete_trigger
+ *   automation_list_upcoming_runs / list_running_runs / list_history / get_run
+ *   automation_run_now / cancel_run
  *
  * 结果信封统一为 { ok, code, message, ... }（与 dsh-structured-document-view
  * 同款约定），并附带独立文本投影（model 可读）。
@@ -22,22 +22,22 @@ import { triggerLabel } from '../shared/time.ts'
 
 /** 全部工具名（SKILL / docs 契约测试用）。 */
 export const AUTOMATION_TOOL_NAMES = [
-  'automation.create_task',
-  'automation.update_task',
-  'automation.delete_task',
-  'automation.get_task',
-  'automation.list_tasks',
-  'automation.enable_task',
-  'automation.disable_task',
-  'automation.add_trigger',
-  'automation.update_trigger',
-  'automation.delete_trigger',
-  'automation.list_upcoming_runs',
-  'automation.list_running_runs',
-  'automation.list_history',
-  'automation.get_run',
-  'automation.run_now',
-  'automation.cancel_run',
+  'automation_create_task',
+  'automation_update_task',
+  'automation_delete_task',
+  'automation_get_task',
+  'automation_list_tasks',
+  'automation_enable_task',
+  'automation_disable_task',
+  'automation_add_trigger',
+  'automation_update_trigger',
+  'automation_delete_trigger',
+  'automation_list_upcoming_runs',
+  'automation_list_running_runs',
+  'automation_list_history',
+  'automation_get_run',
+  'automation_run_now',
+  'automation_cancel_run',
 ] as const
 
 export type AutomationToolName = (typeof AUTOMATION_TOOL_NAMES)[number]
@@ -201,7 +201,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 创建任务 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.create_task',
+    name: 'automation_create_task',
     description: '创建一个定时自动任务（Task）。任务需要名称、执行动作与至少一个执行时间（Trigger）。返回创建后的完整任务。',
     parameters: {
       name: { type: 'string', required: true, description: '任务名称（如 "每日项目总结"）。' },
@@ -242,8 +242,8 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 更新任务 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.update_task',
-    description: '更新一个已有任务（名称/描述/动作/并发/重试/超时等）。注意：enabled 启停请用 automation.enable_task / disable_task。',
+    name: 'automation_update_task',
+    description: '更新一个已有任务（名称/描述/动作/并发/重试/超时等）。注意：enabled 启停请用 automation_enable_task / disable_task。',
     parameters: {
       task_id: { type: 'string', required: true, description: '要更新的任务 id。' },
       name: { type: 'string', description: '新名称。' },
@@ -281,7 +281,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 删除任务 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.delete_task',
+    name: 'automation_delete_task',
     description: '删除一个任务及其全部执行时间。删除后该任务不再运行（历史 Run 记录一并移除）。',
     parameters: {
       task_id: { type: 'string', required: true, description: '要删除的任务 id。' },
@@ -295,7 +295,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 获取任务 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.get_task',
+    name: 'automation_get_task',
     description: '获取一个任务的详情，包括其全部执行时间（Trigger）与最近运行记录。',
     parameters: {
       task_id: { type: 'string', required: true, description: '任务 id。' },
@@ -313,7 +313,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 列出任务 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.list_tasks',
+    name: 'automation_list_tasks',
     description: '列出全部自动任务（含启用状态、执行动作与执行时间）。',
     parameters: {
       filter: { type: 'string', enum: ['all', 'enabled', 'disabled'], description: '筛选：all（全部）/ enabled（已启用）/ disabled（已暂停），默认 all。' },
@@ -334,7 +334,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 启用 / 暂停 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.enable_task',
+    name: 'automation_enable_task',
     description: '启用一个任务（恢复定时执行）。',
     parameters: {
       task_id: { type: 'string', required: true, description: '任务 id。' },
@@ -347,7 +347,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.disable_task',
+    name: 'automation_disable_task',
     description: '暂停一个任务（不再定时执行；已排队的本次运行会取消，运行中的不中断）。',
     parameters: {
       task_id: { type: 'string', required: true, description: '任务 id。' },
@@ -361,7 +361,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- Trigger --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.add_trigger',
+    name: 'automation_add_trigger',
     description: '给一个任务添加执行时间（Trigger）。一个任务可以有多个执行时间；可单独删除其中某一个。',
     parameters: {
       task_id: { type: 'string', required: true, description: '任务 id。' },
@@ -389,7 +389,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.update_trigger',
+    name: 'automation_update_trigger',
     description: '更新一个执行时间（Trigger）的配置或启用状态。',
     parameters: {
       trigger_id: { type: 'string', required: true, description: 'Trigger id。' },
@@ -418,7 +418,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.delete_trigger',
+    name: 'automation_delete_trigger',
     description: '删除一个执行时间（Trigger）。只影响该执行时间，不影响任务本身与其它执行时间。',
     parameters: {
       trigger_id: { type: 'string', required: true, description: 'Trigger id。' },
@@ -432,7 +432,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 查询 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.list_upcoming_runs',
+    name: 'automation_list_upcoming_runs',
     description: '查看接下来 DSH 准备运行哪些任务（待运行，按时间排序）。',
     parameters: {},
     output: {
@@ -448,7 +448,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.list_running_runs',
+    name: 'automation_list_running_runs',
     description: '查看当前正在运行的任务（运行中）。',
     parameters: {},
     output: {
@@ -464,7 +464,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.list_history',
+    name: 'automation_list_history',
     description: '查看已完成的运行历史（支持按任务与状态筛选）。',
     parameters: {
       task_id: { type: 'string', description: '按任务筛选。' },
@@ -484,7 +484,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.get_run',
+    name: 'automation_get_run',
     description: '获取一次运行（Run）的详情，包括状态、输出、错误与执行日志。',
     parameters: {
       run_id: { type: 'string', required: true, description: 'Run id。' },
@@ -506,7 +506,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
 
   /* --- 运行控制 --- */
   register(ctx, disposers, defineTool({
-    name: 'automation.run_now',
+    name: 'automation_run_now',
     description: '立即运行一个任务（手动触发一次，不影响定时计划）。',
     parameters: {
       task_id: { type: 'string', required: true, description: '任务 id。' },
@@ -519,7 +519,7 @@ export function registerAutomationTools(ctx: { tools: { register(tool: unknown):
   }))
 
   register(ctx, disposers, defineTool({
-    name: 'automation.cancel_run',
+    name: 'automation_cancel_run',
     description: '取消一次运行（Run）。运行中 → 请求中止；排队中 → 直接取消；已完成 → 无效。取消某一次运行不影响任务本身与后续周期执行。',
     parameters: {
       run_id: { type: 'string', required: true, description: 'Run id。' },

@@ -13,12 +13,12 @@ description: 在DSH中创建会话提醒或无Session命令/脚本任务；按�
 
 ## 无会话直接任务
 
-使用 automation.create_task / automation.update_task / automation.delete_task / automation.get_task / automation.list_tasks / automation.enable_task / automation.disable_task。
+使用 automation_create_task / automation_update_task / automation_delete_task / automation_get_task / automation_list_tasks / automation_enable_task / automation_disable_task。
 动作仅command或script；支持.py/.sh/.ps1/.js/.mjs，可设置args、interpreter、context.cwd/context.env。参数为字符串列表，保留空格；解释器缺失明确失败。所有数据操作走工具，不能直改数据库。
 
-时间用 automation.add_trigger / automation.update_trigger / automation.delete_trigger；支持once/hourly/daily/weekday/weekly/monthly/cron与明确time_zone。星期编号0周日至6周六，适配到官方周规则；每月不足日截断。新Cron使用官方Vixie规则，最小一分钟。
+时间用 automation_add_trigger / automation_update_trigger / automation_delete_trigger；支持once/hourly/daily/weekday/weekly/monthly/cron与明确time_zone。星期编号0周日至6周六，适配到官方周规则；每月不足日截断。新Cron使用官方Vixie规则，最小一分钟。
 
-观察与运行用 automation.list_upcoming_runs / automation.list_running_runs / automation.list_history / automation.get_run / automation.run_now / automation.cancel_run。取消本次不删除任务或后续计划。skip跳过重叠，queue依次运行，parallel同时运行；重试仅在用户配置时使用。宿主关闭期间错过的时间不自动补跑，中断结果未知不自动重试。
+观察与运行用 automation_list_upcoming_runs / automation_list_running_runs / automation_list_history / automation_get_run / automation_run_now / automation_cancel_run。取消本次不删除任务或后续计划。skip跳过重叠，queue依次运行，parallel同时运行；重试仅在用户配置时使用。宿主关闭期间错过的时间不自动补跑，中断结果未知不自动重试。
 
 ## 配置与旧任务
 

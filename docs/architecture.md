@@ -1,12 +1,14 @@
 # dsh-automation 当前技术契约
 
-批准版 official-automation-20261014-v1 与 automation-integrated-page-20261014-v2，当前实现0.2.0-rc.2+automation.2。行为与验收以 [同页任务契约](INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](IMPLEMENTATION-20261014.md)及 [规格](SPEC.md)为准。历史升级提案见 [旧升级文档](DSH-UPGRADE-20261011.md)，不作为本版目标。
+批准版 official-automation-20261014-v1 与 automation-integrated-page-20261014-v2，当前实现0.2.0-rc.2+automation.3。行为与验收以 [同页任务契约](INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](IMPLEMENTATION-20261014.md)及 [规格](SPEC.md)为准。历史升级提案见 [旧升级文档](DSH-UPGRADE-20261011.md)，不作为本版目标。
 
 ## 归属与入口
 
 官方Schedule拥有会话提醒、原会话投递与投递记录。automation不调用模型、不创建Session。官方详情plugins.detail.section承载双分区设置；main槽的schedules组合官方原组件／inject／locale与直接页面，用公开优先级保留原注册。唯一侧栏由官方提供；详情按钮selectPanel('schedules')并选择直接任务，旧automation面板重定向。新建请求为一次性内存意图，消费后清除，重入页面不重开旧表单。监听、优先级注册、草稿保护均随客户端卸载清理，卸载恢复官方原页面。
 
 客户端／16工具 → AutomationService → 队列／Worker → ChildProcessExecutor → SQLite。设置桥与迁移桥复用/api/automation路径聚合及同源围栏；原生dsh-app://app仅在回环传输上允许，宿主认证仍独立负责身份。
+
+工具名称按 `automation-tool-names-20261014-v1` 使用 `automation_<操作名>`，名称契约见[工具](tools.md)。旧点号名称退役且不注册别名；任务数据不以工具名关联，无数据库迁移。宿主原始会话日志不改写，不增加Provider拦截或绕过冻结请求的兼容层。
 
 ## 官方依赖
 

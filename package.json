@@ -1,6 +1,6 @@
 {
   "name": "dsh-automation",
-  "version": "0.2.0-rc.2+automation.2",
+  "version": "0.2.0-rc.2+automation.3",
   "description": "基于官方 Schedule Bundle 的自动化增强：无Session命令/脚本执行、运行控制、双分区配置与迁移",
   "type": "module",
   "repository": {

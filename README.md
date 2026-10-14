@@ -1,8 +1,8 @@
 # dsh-automation
 
-基于官方 Schedule Bundle 的直接执行增强，当前版本 **0.2.0-rc.2+automation.2**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)，原执行与配置契约见 [实施契约](docs/IMPLEMENTATION-20261014.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
+基于官方 Schedule Bundle 的直接执行增强，当前版本 **0.2.0-rc.2+automation.3**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)，原执行与配置契约见 [实施契约](docs/IMPLEMENTATION-20261014.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
 
-本次类型／测试／原生验证范围见 [本版验收](docs/VERIFICATION-0.2.0-rc.2+automation.2.md)。
+本次类型／测试／原生验证范围见 [本版验收](docs/VERIFICATION-0.2.0-rc.2+automation.3.md)。
 
 ## 使用
 
@@ -22,7 +22,9 @@
 
 数据默认位于DSH数据目录下automation/，使用SQLite。迁移先预览、选择原会话／核对规则，再应用；强制备份数据库和配置。直接任务保留ID与历史；旧模型任务停用旧路径，迁移为官方提醒。不可等价Cron或月末模型规则列为待处理；后续写入、已投递提醒等恢复冲突拒绝覆盖。
 
-16个automation.*工具及/api/automation保留，只管理直接任务与旧记录；新建模型任务明确引导官方工具。见 [工具](docs/tools.md)与 [Skill](skills/automation/SKILL.md)。
+16个automation_*工具及/api/automation保留，只管理直接任务与旧记录；新建模型任务明确引导官方工具。见 [工具](docs/tools.md)与 [Skill](skills/automation/SKILL.md)。
+
+automation.3 将工具名中的点号改为下划线，例如 `automation.list_tasks` → `automation_list_tasks`，兼容OpenCode Go DeepSeek的名称约束。旧名称不再注册，外部工具过滤／预设按一对一映射更新；任务数据与会话日志保持。包含旧工具调用记录的会话可通过新会话或官方压缩后的上下文过渡；只有失败记录的会话验证新轮次即可。本版先交付隔离验证版本，日常安装另行安排。
 
 ## 安装与版本
 
