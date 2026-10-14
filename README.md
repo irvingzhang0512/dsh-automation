@@ -1,10 +1,14 @@
 # dsh-automation
 
-基于官方 Schedule Bundle 的直接执行增强，当前版本 **0.2.0-rc.2+automation.1**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [实施契约](docs/IMPLEMENTATION-20261014.md)，验证见 [本版验收](docs/VERIFICATION-0.2.0-rc.2+automation.1.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
+基于官方 Schedule Bundle 的直接执行增强，当前版本 **0.2.0-rc.2+automation.2**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)，原执行与配置契约见 [实施契约](docs/IMPLEMENTATION-20261014.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
+
+本次类型／测试／原生验证范围见 [本版验收](docs/VERIFICATION-0.2.0-rc.2+automation.2.md)。
 
 ## 使用
 
-会话中的提示词／Skill任务使用官方自动化工具和官方任务页面，在原会话投递。命令／脚本从「插件管理 → 官方 → 自动化任务 → 详情／配置 → 直接执行任务」进入；不新增侧栏入口。
+从侧栏 **自动化任务** 进入，同页切换“会话任务／直接任务”，顶部“新建直接任务”打开命令／脚本表单。原官方“新建”继续进入会话，通过指令创建会话任务。直接任务有任务／待运行／运行中／历史四标签，详情旧入口也打开同页直接任务；不新增侧栏。
+
+会话任务到时间后让模型在原会话处理指令，可使用 Skill，适合总结分析；直接任务到时间后运行本机程序，不创建会话、不调用模型。两类都需要 DSH 保持运行，直接执行不代表立即执行；脚本先保存本地文件再填写路径。新建按钮只打开表单，保存后按计划触发，也可手动“立即运行”。切换保留页面状态；表单修改未保存时离开先确认，取消保留草稿，保存中不能切换。
 
 直接执行支持 .py、.sh、.ps1、.js、.mjs、命令参数、解释器、工作目录和环境变量；不创建Session、不调用模型。参数每行一个，保留空格；环境变量每行NAME=值。解释器需已安装并可用，可指定完整路径。Windows的.sh脚本优先使用可找到的Git Bash；PowerShell默认pwsh。
 

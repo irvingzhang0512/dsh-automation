@@ -17,10 +17,11 @@
 
 ## 项目概览
 
-当前版本0.2.0-rc.2+automation.1，功能／验收以 [实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
+当前版本0.2.0-rc.2+automation.2，功能／验收以 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
 
 - 官方Schedule负责原会话提示词／Skill；自研仅直接命令／五种脚本，无Session／模型执行器。
 - 官方Bundle详情双分区配置，time-context／schedule／automation三个保存所有者；不注册重复侧栏。
+- 官方侧栏schedules同页会话／直接任务；公开优先级复用官方Component／inject／locale，卸载恢复。新建意图消费后清除，草稿与保存中有切换保护；不修改官方DOM。
 - SQLite、持久队列、超时／取消／重试、skip／queue／parallel、明确时区与迁移恢复。
 - 16工具及API保留。每版精确Bundle基线＋automation整数修订，禁止通用SemVer忽略build修订。
 - Git提交携带lib/完整运行产物；测试仅隔离Desktop，默认禁用副本任务。

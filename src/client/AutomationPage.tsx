@@ -9,7 +9,8 @@
  *
  * 数据全部来自 /api/automation（api.ts）。无额外运行时依赖（纯 React）。
  */
-import { createElement, useEffect, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import {
   api, type RunWire, type HistoryWire, type RunningWire, type TaskWire, type TriggerWire, type UpcomingWire,
 } from './api.ts'
@@ -26,12 +27,18 @@ type ClickEvent = { stopPropagation(): void }
 type TabKey = 'tasks' | 'upcoming' | 'running' | 'history'
 
 /** 页面根组件。 */
-export function AutomationPage(): ReturnType<typeof createElement> {
-  return createElement(AutomationPageImpl)
+export interface AutomationPageProps {
+  embedded?: boolean
+  createRequest?: number
+  onCreateConsumed?: (request: number) => void
+  registerLeaveGuard?: (guard: () => boolean) => () => void
+}
+export function AutomationPage(props: AutomationPageProps = {}): ReactElement {
+  return createElement(AutomationPageImpl, props)
 }
 
 /** 实现（hooks 不能放在条件分支内，独立组件）。 */
-function AutomationPageImpl() {
+function AutomationPageImpl(props: AutomationPageProps) {
   const [tab, setTab] = useState<TabKey>('tasks')
   const [refreshKey, setRefreshKey] = useState(0)
   const [status, setStatus] = useState<{ running: boolean; queued: number; active: number; homeDir: string } | null>(null)
@@ -53,20 +60,21 @@ function AutomationPageImpl() {
   }, [])
 
   const refresh = (): void => setRefreshKey(k => k + 1)
+  useEffect(() => { if (props.createRequest) setTab('tasks') }, [props.createRequest])
 
   return createElement(
     'div',
     { className: 'da-root', style: { padding: '16px 20px', minWidth: 0 } },
     createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 } },
-      createElement('div', null,
-        createElement('h1', { style: { fontSize: 18, margin: 0 } }, '直接执行任务'),
+      createElement('div', { style: { minWidth: 0, flex: 1 } },
+        createElement(props.embedded ? 'h2' : 'h1', { style: { fontSize: 18, margin: 0 } }, '直接执行任务'),
         createElement('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#888)', marginTop: 2 } },
           status === null
             ? '…'
             : `调度${status.running ? '运行中' : '已停止'} · 队列 ${status.queued} · 运行中 ${status.active} · 数据 ${status.homeDir}`,
         ),
       ),
-      createElement('button', { onClick: refresh, style: buttonStyle }, '刷新'),
+      createElement('button', { onClick: refresh, style: { ...buttonStyle, flexShrink: 0, whiteSpace: 'nowrap' } }, '刷新'),
     ),
     createElement('div', { style: { display: 'flex', gap: 8, borderBottom: '1px solid #e5e5e5', paddingBottom: 8 } },
       tabs.map(t => createElement('button', {
@@ -76,7 +84,7 @@ function AutomationPageImpl() {
       }, t.label)),
     ),
     createElement('div', { style: { flex: 1, minHeight: 0 } },
-      tab === 'tasks' && createElement(TasksTab, { refreshKey, onChanged: refresh }),
+      createElement('div', { hidden: tab !== 'tasks' }, createElement(TasksTab, { refreshKey, onChanged: refresh, embedded: props.embedded, createRequest: props.createRequest, onCreateConsumed: props.onCreateConsumed, registerLeaveGuard: props.registerLeaveGuard })),
       tab === 'upcoming' && createElement(UpcomingTab, { refreshKey, onChanged: refresh }),
       tab === 'running' && createElement(RunningTab, { refreshKey, onChanged: refresh }),
       tab === 'history' && createElement(HistoryTab, { refreshKey, onChanged: refresh }),
@@ -112,11 +120,18 @@ const smallButtonStyle: React.CSSProperties = { ...buttonStyle, padding: '3px 8p
 
 /* ---------------- 任务 Tab ---------------- */
 
-function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
+function TasksTab(props: { refreshKey: number; onChanged: () => void; embedded?: boolean; createRequest?: number; onCreateConsumed?: (request: number) => void; registerLeaveGuard?: (guard: () => boolean) => () => void }) {
   const [tasks, setTasks] = useState<TaskWire[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [drawer, setDrawer] = useState<{ mode: 'create' } | { mode: 'edit'; task: TaskWire } | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
+  const lastCreate = useRef(0)
+  useEffect(() => {
+    if (!props.createRequest || props.createRequest === lastCreate.current) return
+    lastCreate.current = props.createRequest
+    setDrawer({ mode: 'create' })
+    props.onCreateConsumed?.(props.createRequest)
+  }, [props.createRequest])
 
   useEffect(() => {
     let alive = true
@@ -130,7 +145,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
   }, [props.refreshKey])
 
   return createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-    createElement('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
+    !props.embedded && createElement('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
       createElement('button', { onClick: () => setDrawer({ mode: 'create' }), style: buttonStyle }, '+ 新建任务'),
     ),
     error !== null && createElement('div', { style: { color: '#c0392b', fontSize: 13 } }, error),
@@ -167,17 +182,19 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
       tasks !== null && tasks.length === 0 && createElement('div', { style: { color: 'var(--dsw-alias-label-secondary,#888)', fontSize: 13, padding: '20px 16px', textAlign: 'center', lineHeight: 1.8 } },
         '还没有定时任务。创建方式有两种：',
         createElement('br'),
-        createElement('span', null, '① 点右上角「+ 新建任务」，填写命令或脚本及执行时间；'),
+        createElement('span', null, props.embedded ? '① 点页面上方「新建直接任务」，填写命令或脚本及执行时间；' : '① 点右上角「+ 新建任务」，填写命令或脚本及执行时间；'),
         createElement('br'),
         createElement('span', null, '② 对助手说明定时执行哪个命令或脚本。会话与Skill任务请使用官方自动化任务。'),
       ),
       tasks === null && error === null && createElement('div', { style: { color: '#999', fontSize: 13, padding: 16 } }, '加载中…'),
     ),
     drawer !== null && createElement(TaskDrawer, {
+      key: drawer.mode === 'edit' ? drawer.task.id : 'create-' + lastCreate.current,
       mode: drawer.mode,
       task: drawer.mode === 'edit' ? drawer.task : undefined,
       onClose: () => setDrawer(null),
       onSaved: () => { setDrawer(null); props.onChanged() },
+      registerLeaveGuard: props.registerLeaveGuard,
     }),
     detailId !== null && createElement(TaskDetail, { taskId: detailId, onClose: () => setDetailId(null), onChanged: props.onChanged }),
   )
@@ -185,7 +202,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void }) {
 
 /* ---------------- 任务 Drawer（新建 / 编辑） ---------------- */
 
-function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: () => void; onSaved: () => void }) {
+function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: () => void; onSaved: () => void; registerLeaveGuard?: (guard: () => boolean) => () => void }) {
   const [name, setName] = useState(props.task?.name ?? '')
   const [description, setDescription] = useState(props.task?.description ?? '')
   const [actionType, setActionType] = useState<'command' | 'script'>(props.task?.action.type === 'script' ? 'script' : 'command')
@@ -213,6 +230,15 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
   const [weekdaySet,setWeekdaySet] = useState('1,2,3,4,5')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const formValue = JSON.stringify({ name, description, actionType, actionCommand, actionPath, actionArgs, concurrency, timeoutSec, retryEnabled, retryMax, retryDelay, triggerType, triggerTime, triggerWeekday, triggerDay, triggerMinute, triggerAt, triggerExpr, cwd, envText, interpreter, shell, timeZone, weekdaySet })
+  const initialValue = useRef(formValue)
+  const draftChanged = formValue !== initialValue.current
+  const requestClose = (): boolean => {
+    if (saving) return false
+    if (draftChanged && !window.confirm('放弃未保存的任务修改？')) return false
+    props.onClose(); return true
+  }
+  useEffect(() => props.registerLeaveGuard?.(requestClose), [props.registerLeaveGuard, draftChanged, saving, formValue])
 
   const buildAction = (): Record<string, unknown> => {
     switch (actionType) {
@@ -289,13 +315,13 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1000,
       display: 'flex', justifyContent: 'flex-end',
     },
-    onClick: props.onClose,
+    onClick: requestClose,
   },
     createElement('div', {
       style: { width: 440, maxWidth: '92vw', background: 'var(--dsw-alias-bg-layer-1,#fff)', height: '100%', overflowY: 'auto', padding: 20, boxSizing: 'border-box' },
       onClick: (e: ClickEvent) => e.stopPropagation(),
     },
-      createElement('h2', { style: { fontSize: 16, margin: '0 0 16px' } }, props.mode === 'create' ? '新建定时任务' : `编辑定时任务 · ${props.task?.name ?? ''}`),
+      createElement('h2', { style: { fontSize: 16, margin: '0 0 16px' } }, props.mode === 'create' ? '新建直接任务' : `编辑直接任务 · ${props.task?.name ?? ''}`),
       createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
         /* 名称 */
         createElement('div', null,
@@ -408,7 +434,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
         ),
         error !== null && createElement('div', { style: { color: '#c0392b', fontSize: 13 } }, error),
         createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 } },
-          createElement('button', { style: buttonStyle, onClick: props.onClose, disabled: saving }, '取消'),
+          createElement('button', { style: buttonStyle, onClick: requestClose, disabled: saving }, '取消'),
           createElement('button', { style: { ...buttonStyle, background: '#1a56db', color: '#fff', borderColor: '#1a56db' }, onClick: () => { void save() }, disabled: saving }, saving ? '保存中…' : '保存'),
         ),
       ),
