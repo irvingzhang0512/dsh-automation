@@ -19,5 +19,6 @@
 - 经实际宿主llm.stream、未修改的dsh-opencode-go 0.1.22和当前Go账号，发送全部16个新工具；DeepSeek V4.1返回automation_list_tasks，真实ToolRuntime分发成功，结果回送后正常stop与完整中文回复。两次请求均HTTP 200，工具查询为空列表；真实用量／上游请求编号见私有model-roundtrip.json。仅允许该只读工具执行，不创建或运行任务。
 - 截图对应原会话确认仅有两次INVALID_REQUEST、没有已完成旧工具调用。只读解析原日志，在内存中重建7条旧消息，追加只读验证指令并使用当前新工具，经同一真实宿主再次完成模型→automation_list_tasks→结果回送→中文回复。原日志前后SHA-256相同；不复制日常会话或凭据到fixture，不在日常原会话发送，不声称已验证日常UI续聊。
 - 私有证据在根`.local/reports/automation-tools-20261014/`：host-summary.json、host-lifecycle.json、model-roundtrip.json、failed-history-roundtrip.json。仅保存字段白名单／结果摘要，不保存提示词或Key；凭据只在诊断进程内读取并用于当前Go端点。首次验证脚本的动态导入／依赖路径／清理函数错误均未计通过，修复后重启隔离fixture并完整复验。
-- 固定Git安装另验，当前来源为明确标记的开发副本，不将源码副本视为已安装的固定Git产物。日常仍automation.1；公开来源和完整组合保持未验。
+- 固定本机Git完整SHA通过Desktop内置pnpm11.7.0安装到另一个无手工源码／peer链接的profile；包完整版本automation.3读回正确，49个lib／types／Skill文件与提交内容一致（仅规范化Git CRLF／LF），实际API兼容匹配。最终来源完整SHA与证据由根候选锁记录；验收补记的纯文档提交不改变运行产物，最终固定SHA重新安装读回。私有git-install-<SHA前缀>.json记录精确来源与文件散列。
+- 所有本次隔离Host在验收后正常停止；日常仍automation.1，公开GitHub来源、完整组合和含旧已完成调用的直接续聊保持未验。本轮没有界面源码变化，沿用automation.2的历史界面事实，不把本轮carrier检查冒充新原生GUI验收。
 - 不修改第三方Provider源码，不自动推送或公开发布；候选兼容标记保持verified=false，整套组合／公开GitHub来源仍待验。
