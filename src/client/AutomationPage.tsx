@@ -195,6 +195,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void; embedded?:
       onClose: () => setDrawer(null),
       onSaved: () => { setDrawer(null); props.onChanged() },
       registerLeaveGuard: props.registerLeaveGuard,
+      embedded: props.embedded,
     }),
     detailId !== null && createElement(TaskDetail, { taskId: detailId, onClose: () => setDetailId(null), onChanged: props.onChanged }),
   )
@@ -202,7 +203,7 @@ function TasksTab(props: { refreshKey: number; onChanged: () => void; embedded?:
 
 /* ---------------- 任务 Drawer（新建 / 编辑） ---------------- */
 
-function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: () => void; onSaved: () => void; registerLeaveGuard?: (guard: () => boolean) => () => void }) {
+function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: () => void; onSaved: () => void; embedded?: boolean; registerLeaveGuard?: (guard: () => boolean) => () => void }) {
   const [name, setName] = useState(props.task?.name ?? '')
   const [description, setDescription] = useState(props.task?.description ?? '')
   const [actionType, setActionType] = useState<'command' | 'script'>(props.task?.action.type === 'script' ? 'script' : 'command')
@@ -312,7 +313,7 @@ function TaskDrawer(props: { mode: 'create' | 'edit'; task?: TaskWire; onClose: 
 
   return createElement('div', {
     style: {
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1000,
+      position: props.embedded ? 'absolute' : 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1000,
       display: 'flex', justifyContent: 'flex-end',
     },
     onClick: requestClose,
