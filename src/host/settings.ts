@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, statSync } from 'node:fs'
 import { SETTINGS_FIELDS, type SettingsOwner, type OwnerSettings } from '../shared/settings.ts'
+import { describePresetTime, hasGlobalTimeOwner, savePresetTime } from './preset-time-settings.ts'
 export const OWNER_PACKAGES: Record<SettingsOwner, string> = {
   'time-context': '@deepseek-ai/dsh-time-context', schedule: '@deepseek-ai/dsh-schedule', automation: 'dsh-automation',
 }
@@ -32,6 +33,7 @@ function project(value: Record<string, unknown>, owner: SettingsOwner): Record<s
 export function createSettingsBridge(editor: ConfigEditor, busy: () => boolean) {
   const describe = (): OwnerSettings[] => (Object.keys(OWNER_PACKAGES) as SettingsOwner[]).map(owner => {
     try {
+      if (owner === 'time-context' && !hasGlobalTimeOwner(editor)) return describePresetTime(editor)
       const row = ownerRow(editor, owner)
       const effective = unpack(row.entry.fiber?.config ?? { ...row.inherited, ...row.override })
       return { owner, entryId: row.entry.options.id, effective: project(effective ?? {}, owner), user: project(row.override, owner), base: project(row.inherited, owner), fields: SETTINGS_FIELDS[owner], writable: !!row.entry.fiber?.runtime?.Config, revisionToken: revision([row.entry.options.config ?? {}, row.inherited]), applies: owner === 'automation' ? '服务重载后；执行中禁止保存' : '官方条目重载后' }
@@ -42,6 +44,7 @@ export function createSettingsBridge(editor: ConfigEditor, busy: () => boolean) 
     async save(request: any): Promise<OwnerSettings[]> {
       if (!request || !Object.hasOwn(OWNER_PACKAGES, request.owner)) throw new BridgeError('INVALID_OWNER', '非法配置所有者。')
       const owner = request.owner as SettingsOwner
+      if (owner === 'time-context' && !hasGlobalTimeOwner(editor)) { await savePresetTime(editor, request); return describe() }
       if (owner !== 'time-context' && busy()) throw new BridgeError('TASK_BUSY', '请等待或取消正在运行的直接任务后保存。', 409)
       const row = ownerRow(editor, owner)
       if (!row.entry.fiber?.runtime?.Config) throw new BridgeError('OWNER_UNAVAILABLE', '配置所有者未加载。', 409)

@@ -1,8 +1,10 @@
 # dsh-automation
 
-基于官方 Schedule Bundle 的直接执行增强，当前版本 **0.2.0-rc.2+automation.3**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)，原执行与配置契约见 [实施契约](docs/IMPLEMENTATION-20261014.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
+当前兼容升级与验证见 [Desktop 0.2.1-rc.2](docs/DSH-UPGRADE-20261017.md)。历史版本验收仍保留，不代表本版已公开发布。
 
-本次类型／测试／原生验证范围见 [本版验收](docs/VERIFICATION-0.2.0-rc.2+automation.3.md)。
+基于官方内置 Schedule 的直接执行增强，当前版本 **0.2.1-rc.2+automation.1**。功能规格见 [SPEC](docs/SPEC.md)，已确认方案见 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)，原执行与配置契约见 [实施契约](docs/IMPLEMENTATION-20261014.md)。[原始需求](dsh-automation-requirements.md)保留为历史来源。
+
+本次类型／测试／原生验证范围见 [本版验收](docs/DSH-UPGRADE-20261017.md)。
 
 ## 使用
 

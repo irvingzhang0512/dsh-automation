@@ -1,3 +1,8 @@
+# 0.2.1-rc.2+automation.1 — 2026-10-17
+
+- 旧实验 Schedule Bundle 已退役，来源改查 dsh-web-app 和 schedule／time-context／client-ui-schedule 的真实版本。详情附着自研插件；时间上下文由三个官方预设持有。两字段经官方 configEditor 分别保存，保留其他插件和未知字段；各预设值不一致时只读，冲突拒绝，部分失败尝试安全恢复。任务存储、16 工具与执行语义保持。
+- 类型／构建及155项测试通过，实际范围见[升级验收](docs/DSH-UPGRADE-20261017.md)。
+
 # Changelog
 
 ## 0.2.0-rc.2+automation.3（2026-10-14）

@@ -1,6 +1,8 @@
 # dsh-automation 当前技术契约
 
-批准版 official-automation-20261014-v1 与 automation-integrated-page-20261014-v2，当前实现0.2.0-rc.2+automation.3。行为与验收以 [同页任务契约](INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](IMPLEMENTATION-20261014.md)及 [规格](SPEC.md)为准。历史升级提案见 [旧升级文档](DSH-UPGRADE-20261011.md)，不作为本版目标。
+2026-10-17宿主升级契约与配置归属以[本次升级](DSH-UPGRADE-20261017.md)为准；原功能语义保持。
+
+批准版 official-automation-20261014-v1 与 automation-integrated-page-20261014-v2，当前实现0.2.1-rc.2+automation.1。行为与验收以 [同页任务契约](INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](IMPLEMENTATION-20261014.md)及 [规格](SPEC.md)为准。历史升级提案见 [旧升级文档](DSH-UPGRADE-20261011.md)，不作为本版目标。
 
 ## 归属与入口
 
@@ -12,7 +14,7 @@
 
 ## 官方依赖
 
-实际profile Bundle列表、configEditor.configuration条目、Loader父tree baseUrl、pluginPackages与installAnchor共同检查来源。目标Bundle、dsh-schedule、dsh-time-context、dsh-client-ui-schedule和Desktop必须精确0.2.0-rc.2。
+实际profile Bundle列表、configEditor.configuration条目、Loader父tree baseUrl、pluginPackages与installAnchor共同检查来源。目标dsh-web-app、dsh-schedule、dsh-time-context、dsh-client-ui-schedule和Desktop必须精确0.2.1-rc.2。time-context在三个预设内部；不存在唯一全局Loader条目不代表缺包。
 
 shared/time.ts使用公开createAtSchedule、createDailySchedule、createWeeklySchedule、createCronSchedule；monthly直接规则用Temporal按时区截断月末后交绝对时间助手。旧解析器仅用于历史规则诊断，不作为新调度算法。官方Cron与旧日期／星期AND语义不可直接互换。
 

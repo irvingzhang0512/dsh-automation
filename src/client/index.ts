@@ -15,7 +15,7 @@ export function apply(raw: Context): void {
   registerIntegratedTasks(ctx, (entry, props) => createElement(IntegratedTaskPage, { navigation, official: entry.component, officialProps: props }))
   function LegacyDirectPanel() { useEffect(openDirect, []); return null }
   ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: AUTOMATION_PANEL }, LegacyDirectPanel))
-  ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({ name: 'plugins.detail.section', id: 'automation-settings', order: 50 }, (props: any) => props.subject?.kind === 'bundle' && props.subject.pkg.name === '@deepseek-ai/dsh-experimental-schedule-bundle' ? createElement(SettingsSection, { onOpen: openDirect }) : null))
+  ctx.slots.inject('plugins.detail.section', () => ctx.slots.register({ name: 'plugins.detail.section', id: 'automation-settings', order: 50 }, (props: any) => props.subject?.kind === 'bundle' && props.subject.pkg.name === 'dsh-automation' ? createElement(SettingsSection, { onOpen: openDirect }) : null))
   ctx.effect(() => () => removeStyle(), 'automation: styles')
 }
 export { AUTOMATION_PANEL as AUTOMATION_PANEL_ID }

@@ -1,6 +1,8 @@
 # dsh-automation 当前功能规格
 
-批准版：official-automation-20261014-v1、automation-integrated-page-20261014-v2 与 automation-tool-names-20261014-v1；用户于2026-10-14明确要求实施同版方案。当前包版本0.2.0-rc.2+automation.3。原始需求[只读保留](../dsh-automation-requirements.md)；旧升级提案[作为历史](DSH-UPGRADE-20261011.md)。执行细节见[实施契约](IMPLEMENTATION-20261014.md)，工具名称以[工具契约](tools.md)为准，配置技术映射见[配置表](CONFIG-UI.md)。
+2026-10-17宿主升级契约与配置归属以[本次升级](DSH-UPGRADE-20261017.md)为准；原功能语义保持。
+
+批准版：official-automation-20261014-v1、automation-integrated-page-20261014-v2 与 automation-tool-names-20261014-v1；用户于2026-10-14明确要求实施同版方案。当前包版本0.2.1-rc.2+automation.1。原始需求[只读保留](../dsh-automation-requirements.md)；旧升级提案[作为历史](DSH-UPGRADE-20261011.md)。执行细节见[实施契约](IMPLEMENTATION-20261014.md)，工具名称以[工具契约](tools.md)为准，配置技术映射见[配置表](CONFIG-UI.md)。
 
 2026-10-14 同页任务整合获明确实施批准，契约 `automation-integrated-page-20261014-v2`；当前差异见[同页任务契约](INTEGRATED-TASK-PAGE-20261014.md)，实际验证见[本版验收](VERIFICATION-0.2.0-rc.2+automation.2.md)。
 

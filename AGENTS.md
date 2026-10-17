@@ -1,5 +1,7 @@
 # AGENTS.md
 
+2026-10-17宿主升级契约与配置归属以[本次升级](docs/DSH-UPGRADE-20261017.md)为准；原功能语义保持。
+
 ## 开发入口与文档分工
 
 先返回根维护目录，读取 [根 AGENTS](../AGENTS.md)、[维护规范](../docs/MAINTENANCE.md) 和开发 Skill；本仓库的特殊约束仍适用。统一流程见 [文档驱动开发](../docs/DOC-DRIVEN-DEVELOPMENT.md)，当前可编辑规格见 [docs/SPEC.md](docs/SPEC.md)。
@@ -17,7 +19,7 @@
 
 ## 项目概览
 
-当前版本0.2.0-rc.2+automation.3，功能／验收以 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
+当前版本0.2.1-rc.2+automation.1，功能／验收以 [同页任务契约](docs/INTEGRATED-TASK-PAGE-20261014.md)、[实施契约](docs/IMPLEMENTATION-20261014.md) 与 [SPEC](docs/SPEC.md) 为准。
 
 - 官方Schedule负责原会话提示词／Skill；自研仅直接命令／五种脚本，无Session／模型执行器。
 - 官方Bundle详情双分区配置，time-context／schedule／automation三个保存所有者；不注册重复侧栏。
