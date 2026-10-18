@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Irving · Automation Enhancement",
+    "description": "Extend DSH built-in automation with command and script tasks, scheduled execution, failure retries, timeouts, and concurrency control."
+  }
+}

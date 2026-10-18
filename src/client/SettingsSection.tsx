@@ -51,7 +51,7 @@ export function SettingsSection({ onOpen }: { onOpen: () => void }) {
     )
   }
   return h('section',{ className: 'da-settings', 'data-automation-settings': true },
-    h('h2',null,'自动化配置'),
+    h('h2',null,'Irving · 自动化增强'),
     h('p',null,'官方负责会话提醒；Automation 负责无会话的命令和脚本。两区分别保存。'),
     problem && h('p',{ role: 'alert' },problem),
     h('div',{ className: 'da-settings-actions' },h(Button,{ type: 'button', onClick: onOpen },'直接执行任务')),

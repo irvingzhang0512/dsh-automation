@@ -37,3 +37,8 @@ shared/time.ts使用公开createAtSchedule、createDailySchedule、createWeeklyS
 ## 来源
 
 [宿主](../src/index.ts)、[设置桥](../src/host/settings.ts)、[迁移桥](../src/host/migration.ts)、[调度](../src/core/service.ts)、[时间](../src/shared/time.ts)、[进程](../src/actions/process.ts)、[存储](../src/storage/sqlite.ts)、[客户端](../src/client/index.ts)、[验收](VERIFICATION-0.2.0-rc.2+automation.1.md)。
+
+
+## 2026-10-18 统一展示与套件交付契约
+
+依据用户已确认的 office-suite-implementation-20261018-v1。Irving · 自动化增强／Irving · Automation Enhancement，包 dsh-automation 统一 0.2.1-rc.2+rev.1。展示资源通过 locale 导出提供；原条目 id、服务／工具／客户端身份、配置及存储保持。本插件保持独立安装。版本按完整字符串与固定散列核对；本节不授权原先待确认的业务扩展。

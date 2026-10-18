@@ -116,7 +116,7 @@ describe('official timing and direct execution',()=>{
     }finally{releases.splice(0).forEach(release=>release());await service.dispose();store.close()}
   })
   it('invalid initial trigger rolls back task creation',async()=>{const {store,service}=fixture();try{const result=service.createTask({name:'invalid',enabled:true,created_by:'web',action:{type:'command',command:'node'}},[{type:'cron',expr:'invalid'}]);expect(result.ok).toBe(false);expect(store.listTasks()).toEqual([])}finally{await service.dispose();store.close()}})
-  it('compares own revisions while rejecting automatic cross-baseline upgrades',()=>{expect(compareAutomationVersions('0.2.0-rc.2+automation.2','0.2.0-rc.2+automation.1')).toBe(1);expect(()=>compareAutomationVersions('0.2.1+automation.1','0.2.0-rc.2+automation.1')).toThrow()})
+  it('compares own revisions while rejecting automatic cross-baseline upgrades',()=>{expect(compareAutomationVersions('0.2.0-rc.2+rev.2','0.2.0-rc.2+rev.1')).toBe(1);expect(()=>compareAutomationVersions('0.2.1+rev.1','0.2.0-rc.2+rev.1')).toThrow()})
 })
 describe('migration and recovery',()=>{
   function migrationFixture(){const f=fixture(),{editor}=editorFixture(f.root);let calls=0;const catalog:any[]=[];const schedule={async create(sessionId:string,request:any){calls++;const value={...request,id:'schedule-'+calls,scheduledAt:'2099-01-01T00:00:00Z'};catalog.push({...value,sessionId,status:'active'});return value},async delete(request:any){const index=catalog.findIndex(item=>item.id===request.id);if(index>=0)catalog.splice(index,1);return{deleted:index>=0}},async catalog(){return catalog}};return{...f,editor,schedule,catalog,migration:createMigrationBridge(f.store,f.service,editor,schedule,{async list(){return{items:[{sessionId:'session-existing'}]}}})}}

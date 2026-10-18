@@ -1,7 +1,7 @@
 {
   "name": "dsh-automation",
-  "version": "0.2.1-rc.2+automation.1",
-  "description": "基于官方 Schedule Bundle 的自动化增强：无Session命令/脚本执行、运行控制、双分区配置与迁移",
+  "version": "0.2.1-rc.2+rev.1",
+  "description": "为 DSH 内置自动化增加命令与脚本任务，支持定时执行、失败重试、超时及并发控制。",
   "type": "module",
   "repository": {
     "type": "git",
@@ -22,7 +22,8 @@
       "default": "./lib/client.js"
     },
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
@@ -34,7 +35,8 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "dsh-automation-requirements.md"
+    "dsh-automation-requirements.md",
+    "locale"
   ],
   "engines": {
     "node": ">=22.5.0",
