@@ -25,7 +25,7 @@
 
 ## 配置
 
-进入「插件 → dsh-automation」查看「官方配置」「Automation 配置」。各分区按所属服务分别保存，没有统一的保存全部操作。
+进入「插件 → Irving · 自动化增强」查看「官方配置」「Automation 配置」。各分区按所属服务分别保存，没有统一的保存全部操作。
 
 | 常用设置 | 默认值 | 首次使用建议 |
 |---|---|---|
@@ -83,3 +83,5 @@
 - [配置与迁移](docs/CONFIG-UI.md)、[同页任务说明](docs/INTEGRATED-TASK-PAGE-20261014.md)。
 - [工具参考](docs/tools.md)、[捆绑技能](skills/automation/SKILL.md)。
 - [当前规格](docs/SPEC.md)、[更新记录](CHANGELOG.md)、[技术架构](docs/architecture.md)。
+
+本次统一名称、版本与办公套件的实测范围见 [2026-10-18 验证记录](docs/VERIFICATION-OFFICE-20261018.md)。
