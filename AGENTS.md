@@ -101,3 +101,7 @@ chore: 初始化 git 仓库并提交首个版本
 - LLM / Skill 不得直接修改任务存储文件，所有操作统一通过 `automation_*` 工具；
 - Task 与 Run 严格区分：取消某一次 Run 不等于删除整个 Task；
 - “取消本次运行”不能影响后续周期性任务。
+
+## 2026-10-24 Git 分发约定
+
+根 windows-personal-workspace-v2 已确认自研通过 GitHub 固定提交安装：提交完整运行产物和资源，不依赖安装期构建 hook；开发检查仍显式运行既有 typecheck／test／build 或 JS test／lint。此约定替代旧的 lib 忽略／现场 prepack 做法；不提交 node_modules，不修改业务行为。源码推送、公网安装和本地验证分别记录。
