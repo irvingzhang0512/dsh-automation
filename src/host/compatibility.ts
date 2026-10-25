@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { ConfigEditor } from './settings.ts'
 export const BUNDLE = '@deepseek-ai/dsh-web-app'
-export const BASE_VERSION = '0.2.1-rc.2'
+export const BASE_VERSION = '0.2.1-rc.3'
 export const AUTOMATION_VERSION = BASE_VERSION + '+rev.1'
 export const SCHEDULE_PACKAGES = [BUNDLE, '@deepseek-ai/dsh-schedule', '@deepseek-ai/dsh-time-context', '@deepseek-ai/dsh-client-ui-schedule']
 export function compareAutomationVersions(a: string, b: string): number {
