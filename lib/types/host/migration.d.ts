@@ -2,8 +2,8 @@ import { type ConfigEditor } from './settings.ts';
 import { type AutomationService } from '../core/service.ts';
 import type { SqliteAutomationStore } from '../storage/sqlite.ts';
 interface SchedulePort {
-    create(session: any, request: any): Promise<any>;
-    delete(request: any): Promise<any>;
+    create(request: any, actorSessionId?: any): Promise<any>;
+    edit(request: any, actorSessionId?: any): Promise<any>;
     catalog(): Promise<any[]>;
 }
 export declare function createMigrationBridge(store: SqliteAutomationStore, service: AutomationService, editor: ConfigEditor, schedule: SchedulePort, sessionController: any): {

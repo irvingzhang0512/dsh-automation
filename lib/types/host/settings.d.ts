@@ -10,6 +10,7 @@ export interface ConfigRow {
         };
         fiber?: {
             config?: unknown;
+            effectiveConfig?: unknown;
             runtime?: {
                 Config?: unknown;
             };

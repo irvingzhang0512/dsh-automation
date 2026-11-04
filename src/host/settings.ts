@@ -6,7 +6,7 @@ export const OWNER_PACKAGES: Record<SettingsOwner, string> = {
   'time-context': '@deepseek-ai/dsh-time-context', schedule: '@deepseek-ai/dsh-schedule', automation: 'dsh-automation',
 }
 export interface ConfigRow {
-  entry: { options: { name: string; id: string; config?: Record<string, unknown>; disabled?: boolean }; fiber?: { config?: unknown; runtime?: { Config?: unknown } }; parent?: { tree?: { ctx?: { baseUrl?: string } } } }
+  entry: { options: { name: string; id: string; config?: Record<string, unknown>; disabled?: boolean }; fiber?: { config?: unknown; effectiveConfig?: unknown; runtime?: { Config?: unknown } }; parent?: { tree?: { ctx?: { baseUrl?: string } } } }
   inherited: Record<string, unknown>; override: Record<string, unknown>
 }
 export interface ConfigEditor {
@@ -35,7 +35,7 @@ export function createSettingsBridge(editor: ConfigEditor, busy: () => boolean) 
     try {
       if (owner === 'time-context' && !hasGlobalTimeOwner(editor)) return describePresetTime(editor)
       const row = ownerRow(editor, owner)
-      const effective = unpack(row.entry.fiber?.config ?? { ...row.inherited, ...row.override })
+      const effective = unpack(row.entry.fiber?.effectiveConfig ?? { ...row.inherited, ...row.override })
       return { owner, entryId: row.entry.options.id, effective: project(effective ?? {}, owner), user: project(row.override, owner), base: project(row.inherited, owner), fields: SETTINGS_FIELDS[owner], writable: !!row.entry.fiber?.runtime?.Config, revisionToken: revision([row.entry.options.config ?? {}, row.inherited]), applies: owner === 'automation' ? '服务重载后；执行中禁止保存' : '官方条目重载后' }
     } catch (error) { return { owner, entryId: '', effective: {}, user: {}, base: {}, fields: SETTINGS_FIELDS[owner], writable: false, revisionToken: '', applies: '不可用', unavailableReason: String(error instanceof Error ? error.message : error) } }
   })

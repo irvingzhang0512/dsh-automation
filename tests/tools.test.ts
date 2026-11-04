@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { Context } from '@deepseek-ai/cordis'
+import { NativeToolExecutor } from '@deepseek-ai/dsh-tool-executor-native'
 import { ToolRuntime, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { AutomationService } from '../src/core/service.ts'
 import { createMemoryStore } from '../src/storage/sqlite.ts'
@@ -14,15 +15,17 @@ function fixture() {
   ctx.provide('systemPrompt')
   ctx.set('systemPrompt', { tools: () => () => {} } as never)
   const runtime = new ToolRuntime(ctx)
+  runtime.setExecutor(new NativeToolExecutor(ctx))
   const { store } = createMemoryStore()
   const service = new AutomationService(store, { resolveExecutor: () => undefined })
   const dispose = registerAutomationTools({ tools: { register: tool => runtime.register(tool as ToolDefinition) } }, { service })
   let sequence = 0
   const call = async (name: string, args: Record<string, unknown> = {}) => {
-    const result = await runtime.execute({
-      name, arguments: args, callId: `tool-name-${++sequence}` as never,
+    const batch = await runtime.execute({
+      calls:[{type:'tool-call',name,arguments:args,callId:`tool-name-${++sequence}` as never}],
       signal: new AbortController().signal,
     })
+    const result = batch.results[0]!.result
     expect(result.isError, JSON.stringify(result)).toBe(false)
     if (result.isError) throw Error('工具执行失败')
     const value = result.value as Record<string, any>
@@ -96,7 +99,7 @@ describe('自动化工具的模型接口兼容性', () => {
     expect((await call('automation_get_run', { run_id: 'missing' })).code).toBe('RUN_NOT_FOUND')
     expect((await call('automation_add_trigger', { task_id: 'missing' })).code).toBe('INVALID_INPUT')
     expect((await call('automation_add_trigger', { task_id: 'missing', type: 'daily', time: '99:99' })).code).toBe('INVALID_TRIGGER')
-    const old = await runtime.execute({ name: 'automation.create_task', arguments: { name: '不得执行' }, callId: 'retired-tool' as never, signal: new AbortController().signal })
+    const old = (await runtime.execute({ calls:[{type:'tool-call',name:'automation.create_task',arguments:{name:'不得执行'},callId:'retired-tool' as never}],signal:new AbortController().signal })).results[0]!.result
     expect(old.isError).toBe(true)
     expect(store.listTasks()).toEqual([])
   })

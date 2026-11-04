@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { revision, BridgeError, type ConfigEditor } from './settings.ts'
-import { systemTimeZone, legacyRuleIssue, scheduleSelector, normalizeTrigger } from '../shared/time.ts'
+import { systemTimeZone, legacyRuleIssue, scheduleSelector, scheduleTiming, normalizeTrigger } from '../shared/time.ts'
 import { isDirectAction, type AutomationService } from '../core/service.ts'
 import type { SqliteAutomationStore } from '../storage/sqlite.ts'
-interface SchedulePort { create(session: any, request: any): Promise<any>; delete(request: any): Promise<any>; catalog(): Promise<any[]> }
+interface SchedulePort { create(request: any, actorSessionId?: any): Promise<any>; edit(request: any, actorSessionId?: any): Promise<any>; catalog(): Promise<any[]> }
 interface MigrationRecord { id: string; state: string; backup: string; configBackup: string; configurationToken: string; mappings: { id: string; sessionId: string; triggerId: string; expected: unknown }[]; afterRevision?: string; error?: string }
 export function createMigrationBridge(store: SqliteAutomationStore, service: AutomationService, editor: ConfigEditor, schedule: SchedulePort, sessionController: any) {
   const prior = store.getMeta<MigrationRecord[]>('migration-records') ?? []
@@ -27,6 +27,25 @@ export function createMigrationBridge(store: SqliteAutomationStore, service: Aut
     writeFileSync(configBackup, JSON.stringify({ documentPath: editor.documentPath, raw: readFileSync(editor.documentPath, 'utf8') }), { mode: 0o600 })
     return { id, state: 'prepared', backup: file, configBackup, configurationToken: configurationToken(), afterRevision: store.fingerprint(), mappings: [] }
   }
+  // v1 的 expected 没有目标及管理元数据；仅规范投影，不改旧恢复记录。
+  function comparable(value: any, sessionId: string) {
+    const omitted = new Set(['sessionId','status','lastDelivery','involvedSessionIds','createdAt','updatedAt','executionActive','deliveryFloorEndsAt'])
+    const stable = (item: any): any => Array.isArray(item) ? item.map(stable) : item && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key=>[key,stable(item[key])])) : item
+    return stable({ ...Object.fromEntries(Object.entries(value).filter(([key]) => !omitted.has(key))), target: value.target ?? {kind:'session',sessionId} })
+  }
+  function assertReminder(current: any, mapping: MigrationRecord['mappings'][number]) {
+    const expected = mapping.expected as any
+    if (!current || current.lastDelivery || current.status !== 'active' || current.executionActive ||
+      expected.updatedAt !== undefined && current.updatedAt !== expected.updatedAt ||
+      revision(comparable(current,mapping.sessionId)) !== revision(comparable(expected,mapping.sessionId)))
+      throw new BridgeError('RESTORE_CONFLICT','官方提醒已修改、删除或投递；拒绝覆盖后续操作。',409)
+  }
+  async function removeReminder(mapping: MigrationRecord['mappings'][number]) {
+    const current = (await schedule.catalog()).find(item => item.id === mapping.id)
+    assertReminder(current,mapping)
+    const result = await schedule.edit({id:mapping.id,action:'delete',expectedUpdatedAt:current.updatedAt ?? null},mapping.sessionId)
+    if (result.deleted !== true) throw new BridgeError('RESTORE_CONFLICT','官方提醒删除冲突；恢复记录已保留。',409)
+  }
   async function mutate(request: any) {
     if (operating || service.busy) throw new BridgeError('TASK_BUSY', '请等待或取消直接任务后迁移。', 409)
     if (request?.expectedRevisionToken !== dataRevision()) throw new BridgeError('MIGRATION_CONFLICT', '数据已变化，请重新预览。', 409)
@@ -43,11 +62,10 @@ export function createMigrationBridge(store: SqliteAutomationStore, service: Aut
         const catalog = await schedule.catalog()
         for (const mapping of saved.mappings) {
           const current = catalog.find(item => item.id === mapping.id)
-          if (!current || current.lastDelivery || current.status !== 'active') throw new BridgeError('RESTORE_CONFLICT', '官方提醒已删除或投递；拒绝覆盖后续操作。', 409)
-          if (current && revision(Object.fromEntries(Object.entries(current).filter(([key]) => !['lastDelivery','status','sessionId'].includes(key)))) !== revision(mapping.expected)) throw new BridgeError('RESTORE_CONFLICT', '官方提醒已被修改或投递，拒绝删除。', 409)
+          assertReminder(current,mapping)
         }
         for (const mapping of [...saved.mappings]) {
-          await schedule.delete({ sessionId: mapping.sessionId, id: mapping.id })
+          await removeReminder(mapping)
           saved.mappings = saved.mappings.filter(item => item.id !== mapping.id)
           saved.state = 'recovery-required'; persist(saved)
         }
@@ -69,7 +87,7 @@ export function createMigrationBridge(store: SqliteAutomationStore, service: Aut
         if (!prompt.trim() || task.name.trim().length > 120) throw new BridgeError('INVALID_INPUT', '任务标题或指令不符合官方限制。')
         record = backup(); persist(record)
         for (const target of targets) {
-          const created = await schedule.create(request.session_id, { title: task.name.trim(), prompt, ...target.selector })
+          const created = await schedule.create({ title: task.name.trim(), prompt, timing: scheduleTiming(target.selector), target: {kind:'session',sessionId:request.session_id} },request.session_id)
           record.mappings.push({ id: created.id, sessionId: request.session_id, triggerId: target.trigger.id, expected: created }); persist(record)
         }
         store.transaction?.(() => { store.updateTask(task.id, { enabled: false }); store.setMeta('mapped:' + task.id, record!.mappings) })
@@ -94,7 +112,7 @@ export function createMigrationBridge(store: SqliteAutomationStore, service: Aut
       if (record) {
         let recoveryFailed = false
         const remaining: MigrationRecord['mappings'] = []
-        for (const mapping of record.mappings) { try { await schedule.delete({ sessionId: mapping.sessionId, id: mapping.id }) } catch { recoveryFailed = true; remaining.push(mapping) } }
+        for (const mapping of record.mappings) { try { await removeReminder(mapping) } catch { recoveryFailed = true; remaining.push(mapping) } }
         record.mappings = remaining
         if (!recoveryFailed) { try { store.restoreSnapshot?.(record.backup) } catch { recoveryFailed = true } }
         record.state = recoveryFailed ? 'recovery-required' : 'failed'; record.error = error instanceof Error ? error.message : String(error); record.afterRevision = store.fingerprint(); persist(record)

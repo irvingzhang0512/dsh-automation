@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest'
 import { createSettingsBridge, type ConfigEditor, type ConfigRow } from '../src/host/settings.ts'
 function fixture() {
- const rows:ConfigRow[]=['standard','ptc','cordis'].map(id=>({entry:{options:{id:'preset-'+id,name:'@deepseek-ai/dsh-agent-preset',config:{id,unknown:'preserve',plugins:[{id:'other',name:'example',config:{secretReference:'KEEP'}},{id:'time-context',name:'@deepseek-ai/dsh-time-context',config:{unknown:'clock',timeZone:'Asia/Shanghai',refreshIntervalMs:600000}}]}},fiber:{runtime:{Config:{}},config:{}}},inherited:{},override:{}}))
- for(const row of rows)row.entry.fiber!.config=row.entry.options.config
+ const rows:ConfigRow[]=['standard','ptc','cordis'].map(id=>({entry:{options:{id:'preset-'+id,name:'@deepseek-ai/dsh-agent-preset',config:{id,unknown:'preserve',plugins:[{id:'other',name:'example',config:{secretReference:'KEEP'}},{id:'time-context',name:'@deepseek-ai/dsh-time-context',config:{unknown:'clock',timeZone:'Asia/Shanghai',refreshIntervalMs:600000}}]}},fiber:{runtime:{Config:{}},effectiveConfig:{}}},inherited:{},override:{}}))
+ for(const row of rows)row.entry.fiber!.effectiveConfig=row.entry.options.config
  let beforeEdit:(id:string)=>void=()=>{}
- const editor:ConfigEditor={documentPath:'unused',configuration:()=>rows,async edit(entry,change){beforeEdit(entry.options.id);const next=change(entry.options.config??{},{ });entry.options.config=next;entry.fiber!.config=next}}
+ const editor:ConfigEditor={documentPath:'unused',configuration:()=>rows,async edit(entry,change){beforeEdit(entry.options.id);const next=change(entry.options.config??{},{ });entry.options.config=next;entry.fiber!.effectiveConfig=next}}
  return{rows,editor,bridge:createSettingsBridge(editor,()=>false),onEdit(fn:(id:string)=>void){beforeEdit=fn}}
 }
 const clock=(row:ConfigRow)=>(row.entry.options.config!.plugins as any[]).find(p=>p.id==='time-context').config

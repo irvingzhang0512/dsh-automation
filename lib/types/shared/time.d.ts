@@ -87,8 +87,25 @@ export declare function nextOccurrenceOf(config: TriggerConfig, from: number): n
 export declare function systemTimeZone(): string;
 export declare function triggerTimeZone(config: TriggerConfig): string;
 export declare function normalizeTrigger(config: TriggerConfig): NormalizedTrigger;
-export declare function scheduleSelector(config: TriggerConfig): Omit<ScheduleCreateRequest, 'title' | 'prompt'>;
+type ScheduleTiming = ScheduleCreateRequest['timing'];
+type Selector = {
+    at?: Extract<ScheduleTiming, {
+        kind: 'at';
+    }>['at'];
+    daily?: Extract<ScheduleTiming, {
+        kind: 'daily';
+    }>['daily'];
+    weekly?: Extract<ScheduleTiming, {
+        kind: 'weekly';
+    }>['weekly'];
+    cron?: Extract<ScheduleTiming, {
+        kind: 'cron';
+    }>['cron'];
+};
+export declare function scheduleTiming(selector: Selector): ScheduleTiming;
+export declare function scheduleSelector(config: TriggerConfig): Selector;
 export declare function onceInstant(config: TriggerConfig): number;
 export declare function nextOccurrence(normalized: NormalizedTrigger, from: number): number | undefined;
 /** Old parser matched date AND weekday; official Vixie rules may instead use OR. */
 export declare function legacyRuleIssue(config: TriggerConfig): string | undefined;
+export {};

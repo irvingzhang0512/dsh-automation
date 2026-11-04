@@ -42,3 +42,10 @@ shared/time.ts使用公开createAtSchedule、createDailySchedule、createWeeklyS
 ## 2026-10-18 统一展示与套件交付契约
 
 依据用户已确认的 office-suite-implementation-20261018-v1。Irving · 自动化增强／Irving · Automation Enhancement，包 dsh-automation 统一 0.2.1-rc.2+rev.1。展示资源通过 locale 导出提供；原条目 id、服务／工具／客户端身份、配置及存储保持。本插件保持独立安装。版本按完整字符串与固定散列核对；本节不授权原先待确认的业务扩展。
+
+
+## DSH 0.2.2-rc.1 兼容契约（2026-11-04）
+
+官方 Schedule 使用 create(request) 与 edit({action:delete,expectedUpdatedAt})；旧迁移显式指定 session 目标，恢复通过版本化规范投影及修改／投递检查。官方 v2 数据写入后的降级由维护工具保护，不能只换旧程序。设置读取 effectiveConfig，原始覆盖仍由 configEditor 编辑。
+
+具体差异与验收见 [本次设计](../openspec/changes/adapt-dsh-022-rc1/design.md)。

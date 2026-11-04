@@ -390,7 +390,16 @@ export function normalizeTrigger(config: TriggerConfig): NormalizedTrigger {
     return { ...normalized, config: { ...config, time_zone: triggerTimeZone(config) } }
   } catch (error) { throw new TriggerConfigError(error instanceof Error ? error.message : String(error)) }
 }
-export function scheduleSelector(config: TriggerConfig): Omit<ScheduleCreateRequest, 'title' | 'prompt'> {
+type ScheduleTiming = ScheduleCreateRequest['timing']
+type Selector = { at?: Extract<ScheduleTiming, { kind: 'at' }>['at']; daily?: Extract<ScheduleTiming, { kind: 'daily' }>['daily']; weekly?: Extract<ScheduleTiming, { kind: 'weekly' }>['weekly']; cron?: Extract<ScheduleTiming, { kind: 'cron' }>['cron'] }
+export function scheduleTiming(selector: Selector): ScheduleTiming {
+  if (selector.at !== undefined) return { kind: 'at', at: selector.at }
+  if (selector.daily !== undefined) return { kind: 'daily', daily: selector.daily }
+  if (selector.weekly !== undefined) return { kind: 'weekly', weekly: selector.weekly }
+  if (selector.cron !== undefined) return { kind: 'cron', cron: selector.cron }
+  throw new TriggerConfigError('时间规则缺失。')
+}
+export function scheduleSelector(config: TriggerConfig): Selector {
   const time_zone = triggerTimeZone(config)
   switch (config.type) {
     case 'once': {

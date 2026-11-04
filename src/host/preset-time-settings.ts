@@ -14,7 +14,7 @@ const fingerprint = (items: ConfigRow[]) => hash(items.map(row => [row.entry.opt
 const project = (config: any) => Object.fromEntries(SETTINGS_FIELDS['time-context'].map(field => [field.path,config?.[field.path] ?? field.default]))
 export function hasGlobalTimeOwner(editor: ConfigEditor) { return editor.configuration().some(row => row.entry.options.name === TIME && !row.entry.options.disabled) }
 export function describePresetTime(editor: ConfigEditor): OwnerSettings {
-  const items=rows(editor),values=items.map(row=>project(child(unpack(row.entry.fiber?.config ?? row.entry.options.config))[0]?.config))
+  const items=rows(editor),values=items.map(row=>project(child(unpack(row.entry.fiber?.effectiveConfig ?? row.entry.options.config))[0]?.config))
   const mixed=values.some(value=>hash(value)!==hash(values[0]))
   return {owner:'time-context',entryId:items.map(row=>row.entry.options.id).join('|'),effective:values[0]!,user:{},base:{},fields:SETTINGS_FIELDS['time-context'],writable:!mixed,revisionToken:fingerprint(items),applies:'含时间上下文的预设重载后，新会话采用；已有会话保留原快照',...(mixed?{unavailableReason:'各预设的时间设置不同，请先在官方预设编辑器核对，避免覆盖专用设置。'}:{})}
 }
