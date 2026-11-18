@@ -159,3 +159,7 @@
 ## 2026-11-14 DSH 0.2.2-rc.3 适配
 
 [适配提案 v1](changes/adapt-dsh-022-rc3/proposal.md) 沿用既有能力与旧编号，记录固定宿主和领域验收。具体文档待确认。
+
+## 2026-11-15 官方会话任务概览
+
+[会话任务概览 v1](changes/show-official-session-task-overview/review.md) 对应配置区 F012 和同页任务入口 F016。具体文档待确认，待实现。
