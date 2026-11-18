@@ -9,7 +9,7 @@ export function registerIntegratedTasks(ctx: any, render: (entry: any, props: an
       if (current === next) return
       dispose?.(); dispose = undefined; current = next
       if (!next) return
-      dispose = ctx.slots.register({ name: 'main', key: OFFICIAL_TASK_PANEL, priority: -100, registrant: 'dsh-automation:integrated', locale: next.locale, inject: next.inject }, (props: any) => render(next, props))
+      dispose = ctx.slots.register({ name: 'main', key: OFFICIAL_TASK_PANEL, priority: -100, registrant: 'dsh-automation:integrated', locale: next.locale, inject: next.inject, store: next.store }, (props: any) => render(next, props))
     }
     const unsubscribe = ctx.slots.subscribe('main', synchronize)
     synchronize()

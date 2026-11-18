@@ -36,14 +36,16 @@ describe('public slot integration lifecycle', () => {
     core.register({ name: 'root', children: { main: { kind: 'keyed', scope: 'root' } } }, () => null)
     const ctx = { slots: { inject: (_: string, setup: () => () => void) => { effects.push(setup()) }, entries: (key: string) => core.entries(key), subscribe: (key: string, cb: () => void) => core.subscribe(key, cb), register: (spec: any, component: any) => core.register(spec, component) } }
     const original = () => 'official', face = () => ({ onNewTask: () => 'session', hooks: { catalog: {} } })
-    const official = () => core.register({ name: 'main', key: 'schedules', locale: 'schedule.manager', inject: face, registrant: '@deepseek-ai/dsh-client-ui-schedule' }, original)
-    return { core, ctx, effects, original, face, official }
+    const store = { state: { drafts: {} } }
+    const official = () => core.register({ name: 'main', key: 'schedules', locale: 'schedule.manager', store, inject: face, registrant: '@deepseek-ai/dsh-client-ui-schedule' }, original)
+    return { core, ctx, effects, original, face, store, official }
   }
   it('shadows only main, retains official callbacks, and unload restores the original winner', async () => {
     const f = fixture(); f.official(); await Promise.resolve()
     registerIntegratedTasks(f.ctx, (entry, props) => ({ entry, props }))
     const winner = f.core.entriesOfSlot('main')[0]
     expect(winner.inject).toBe(f.face); expect(winner.locale).toBe('schedule.manager')
+    expect(winner.store).toBe(f.store)
     const props = { useCatalog: 'bound' }; expect(winner.component(props).props).toBe(props)
     expect(winner.component(props).entry.component).toBe(f.original)
     expect(f.core.entries('main')).toHaveLength(2)

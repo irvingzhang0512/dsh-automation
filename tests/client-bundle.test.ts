@@ -12,13 +12,15 @@ it('built client composes official task panel without registering another sideba
   const primitives = { Button: 'button', Tooltip: 'tooltip', SegmentedTabs: 'tabs' }
   const client = entry.factory((name: string) => name === 'react' ? react : primitives)
   const inject = () => ({ hooks: { catalog: {} }, onNewTask() {} })
-  const official = { options: { key: 'schedules' }, locale: 'schedule.manager', inject, component: () => 'official', registrant: '@deepseek-ai/dsh-client-ui-schedule' }
+  const store = { state: { drafts: {} } }
+  const official = { options: { key: 'schedules' }, locale: 'schedule.manager', store, inject, component: () => 'official', registrant: '@deepseek-ai/dsh-client-ui-schedule' }
   const slots: any[] = []
   const panels: string[] = []
   client.apply({ slots: { inject: (_name: string, fn: () => void) => fn(), entries: () => [official], subscribe: () => () => {}, register: (spec: any, component: any) => { slots.push({ spec, component }); return () => {} } }, layout: { selectPanel: (id: string) => panels.push(id) }, effect: (fn: any) => fn() })
   expect(slots.map(item => item.spec.name)).toEqual(['main', 'main', 'plugins.detail.section'])
   expect(slots[0].spec.key).toBe('schedules'); expect(slots[0].spec.priority).toBeLessThan(0)
   expect(slots[0].spec.inject).toBe(inject); expect(slots[0].spec.locale).toBe('schedule.manager')
+  expect(slots[0].spec.store).toBe(store)
   const bound = { useCatalog() {}, onNewTask() {}, t() {} }
   const integrated = slots[0].component(bound)
   expect(integrated.props.official).toBe(official.component); expect(integrated.props.officialProps).toBe(bound)

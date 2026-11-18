@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import type { ConfigEditor } from './settings.ts'
 export const BUNDLE = '@deepseek-ai/dsh-web-app'
 export const BASE_VERSION = '0.2.2-rc.3'
-export const AUTOMATION_VERSION = BASE_VERSION + '+rev.1'
+export const AUTOMATION_VERSION = BASE_VERSION + '+rev.2'
 export const SCHEDULE_PACKAGES = [BUNDLE, '@deepseek-ai/dsh-schedule', '@deepseek-ai/dsh-time-context', '@deepseek-ai/dsh-client-ui-schedule']
 export function compareAutomationVersions(a: string, b: string): number {
   const split = (v: string) => { const m = /^(.+)\+rev\.([1-9]\d*)$/.exec(v); if (!m || !Number.isSafeInteger(Number(m[2]))) throw Error('非法 automation 版本'); return [m[1], Number(m[2])] as const }
